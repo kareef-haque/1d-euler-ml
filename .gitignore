@@ -10,8 +10,6 @@ __pycache__/
 
 # Ignore .mp4 files
 *.mp4
-*.png
-*.pt
 
 # Ignore stored generated data
 generated_data

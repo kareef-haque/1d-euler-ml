@@ -1,22 +1,18 @@
 '''
 Generates dataset for ML Training
 - Solutions of randomly generated versions of a shock tube problem
-- Will automatically save and create a folder named 'generated_data' in the current working directory
+- Will automatically save and create a folder named 'data' in the current working directory
     - Generates a Train/Test/Validation Split
         - Default Ratio is 80/20/0
             - User may modify it here
 - Saves outputs as .npy files
     - Outputs are numerically solved Q at every timestep (N_iter, 3, N_cells)
         Q = Conservative State Matrix: Shape (3, N_cells)
-- Also saves <name>_meta.npz next to each trajectory (initial states, interface position, dx, dt,
-  t_hist, gamma) so exact solutions can be reconstructed and euler1d/neural/dataset.py can
-  coarse-grain the data consistently
 '''
 
 import numpy as np
 import os
 from run import random_Run
-from infrastructure.solver_config import cons_to_prim
 
 # Dataset configuration parameters defined here
     #NOTE: MODIFY random_Run() IN run.py TO MODIFY SOLVER PARAMETERS
@@ -34,34 +30,54 @@ test_save_path = os.path.join(data_path, "test")
 validate_save_path = os.path.join(data_path, "validate")
 
 
-def _save_sample(save_dir, name):
-    result, physics = random_Run(return_physics=True)
-    cfg = result.config
-    np.save(os.path.join(save_dir, f"{name}.npy"), np.array(result.Q_hist))
-    np.savez(os.path.join(save_dir, f"{name}_meta.npz"),
-             prim_L=cons_to_prim(physics.Q_L[:, None], cfg.gamma)[:, 0],
-             prim_R=cons_to_prim(physics.Q_R[:, None], cfg.gamma)[:, 0],
-             x_interface=physics.domain_split_percent * cfg.domain_size,
-             domain_size=cfg.domain_size, dx=cfg.dx, dt=cfg.dt,
-             t_hist=np.array(result.t_hist), gamma=cfg.gamma)
-
 
 def generate_Euler_Dataset():
 
     # Create data storage folders if missing
-    for path in [data_path, train_save_path, test_save_path, validate_save_path]:
-        os.makedirs(path, exist_ok=True)
+    if not os.path.exists(data_path):
+        os.makedirs(data_path)
+    for path in [train_save_path, test_save_path, validate_save_path]:
+        if not os.path.exists(path):
+            os.makedirs(path)
 
-    splits = [("train", train_save_path, int(N_samples*percent_train)),
-              ("test", test_save_path, int(N_samples*percent_test)),
-              ("validate", validate_save_path, int(N_samples*percent_validate))]
+    N_train = int(N_samples*percent_train)
+    N_test = int(N_samples*percent_test)
+    N_validate = int(N_samples*percent_validate)
 
-    for split, save_dir, n in splits:
-        for i in range(n):
-            print('============================================')
-            print(f"Generating {split} data {i+1}/{n}")
-            print('============================================')
-            _save_sample(save_dir, f"{split}_{i}")
+    for i in range(N_train):
+        print('============================================')
+        print(f"Generating train data {i+1}/{N_train}")
+        print('============================================')
+        train_result = random_Run()
+        Q_toSave = np.array(train_result.Q_hist)
+        np.save(os.path.join(train_save_path, f"train_{i}.npy"), Q_toSave)
+        print('============================================')
+        print(f"Saving train data {i+1}/{N_train}")
+        print('============================================')
+
+    for i in range(N_test):
+        print('============================================')
+        print(f"Generating test data {i+1}/{N_test}")
+        print('============================================')
+        test_result = random_Run()
+        Q_toSave = np.array(test_result.Q_hist)
+        np.save(os.path.join(test_save_path, f"test_{i}.npy"), Q_toSave)
+        print('============================================')
+        print(f"Saving test data {i+1}/{N_train}")
+        print('============================================')
+    for i in range(N_validate):
+        print('============================================')
+        print(f"Generating validation data {i+1}/{N_validate}")
+        print('============================================')
+        validate_result = random_Run()
+        Q_toSave = np.array(validate_result.Q_hist)
+        np.save(os.path.join(validate_save_path, f"validate_{i}.npy"), Q_toSave)
+        print('============================================')
+        print(f"Saving validation data {i+1}/{N_train}")
+        print('============================================')
+
+
+
 
 
 if __name__ == '__main__':

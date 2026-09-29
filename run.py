@@ -2,8 +2,6 @@
 Run randomly generated Shock Tube Problem solved via Euler Solver
 - Essentially a copy and paste of the test_Sod_Shock function, but why not
 - Also useful for the data_generation code
-- Can also run a trained neural flux (flux_scheme='Neural', neural_model='runs/.../model_best.pt');
-  note a neural flux is only calibrated for the dx/dt it was trained at
 '''
 
 import numpy as np
@@ -15,28 +13,26 @@ from infrastructure.results import ExactRiemannSolver, animate_comparison
 
 
 
-def random_Run(flux_scheme = 'HLLC',
-               reconstruction_scheme = 'WENO5Z',
-               neural_model = None,
-               N_cells = 1000,
-               dt = 1e-6,
-               return_physics = False):
+def random_Run():
     """
-    Runs a randomly generated shock tube problem.
-
-    :param str flux_scheme: 'HLLC', 'AUSM+' or 'Neural'
-    :param str reconstruction_scheme: 'WENO5Z', 'WENO5' or 'FirstOrder' (ignored for 'Neural')
-    :param neural_model: checkpoint path / NeuralFluxScheme, required for 'Neural'
-    :param bool return_physics: also return the PhysicsConfig (needed to save metadata)
+    Runs Sod Shock Tube problem test case to compare against exact solution.
     """
 
     #NOTE: THESE KEY SOLVER PARAMETERS ARE FIXED ACROSS ALL SIMS
+    N_cells = 1000
     domain_size = 1.0
     t_max = 0.00075
+    dt = 1e-6
     N_ghost = 3
     gamma = 1.4
 
     #NOTE: SCHEME SELECTION HERE (NO-DUH)
+    '''
+    SCHEME SELECTION
+    '''
+    flux_scheme = 'HLLC'
+    reconstruction_scheme = 'WENO5Z'
+
     # flux_scheme = 'AUSM+'
     # reconstruction_scheme = 'WENO5'
 
@@ -61,12 +57,9 @@ def random_Run(flux_scheme = 'HLLC',
     results = EulerSolver(
         config=solver_config,
         flux=flux_scheme,
-        reconstruction=reconstruction_scheme,
-        neural_scheme=neural_model
+        reconstruction=reconstruction_scheme
     )
 
-    if return_physics:
-        return results, physics_config
     return results
 
 

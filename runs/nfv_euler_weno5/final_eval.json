@@ -1,0 +1,26 @@
+{
+  "hllc_fo": {
+    "l1_mean": 0.0257103953273345,
+    "l2_mean": 0.007108945116401111,
+    "winrate_l2_vs_hllc_fo": 0.0,
+    "l2_ratio_vs_ref": 1.0
+  },
+  "rusanov_fo": {
+    "l1_mean": 0.033723240889816174,
+    "l2_mean": 0.010507891906286818,
+    "winrate_l2_vs_hllc_fo": 0.0,
+    "l2_ratio_vs_ref": 0.6765339023089746
+  },
+  "hllc_weno5": {
+    "l1_mean": 0.008472101183100184,
+    "l2_mean": 0.0014436595097333709,
+    "winrate_l2_vs_hllc_fo": 1.0,
+    "l2_ratio_vs_ref": 4.924253307979844
+  },
+  "neural": {
+    "l1_mean": 0.008201696238114991,
+    "l2_mean": 0.0012495861868403423,
+    "winrate_l2_vs_hllc_fo": 1.0,
+    "l2_ratio_vs_ref": 5.6890394526339385
+  }
+}
