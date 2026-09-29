@@ -118,7 +118,7 @@ def EulerSolver(config: EulerConfig,
         if iteration_count % 10 == 0:
             current_time = datetime.now()
             elapsed_seconds = (current_time - start_time).total_seconds()
-            print(f"Progress: {iteration_count} | iterations ({elapsed_seconds:.3f}s) | Sim Time ({t_curr:.6f}s): ")
+            print(f"Progress: {iteration_count} | iterations: ({elapsed_seconds:.3f}s) | Sim Time: ({t_curr:.6f}s) ")
 
     print(f"Simulation Complete")
     Results = EulerResults(Q_hist,

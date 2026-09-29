@@ -20,16 +20,23 @@ class EulerConfig:
 
     #initial conditions
     IC: np.ndarray #(3, N_cells) Initial Condition of Primative State Matrix
+    #initial conditions used for ML
+    QL: np.ndarray 
+    QR: np.ndarray
+    x_split_percent: float
 
     #boundary conditions
     BC: str = field(default = 'Zero-Gradient') #Zero-Gradient, Reflective, Periodical
     N_ghost: int = field(default = 3) #number of ghost cells
 
 
+
     # other parameters
     gamma: float = field(default = 1.4) #ratio of specific heats
     t_max: float = field(default = 10) #s
     dt: float = field(default = 0.01) #s
+
+
 
 
 

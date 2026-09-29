@@ -8,7 +8,7 @@ import numpy as np
 from infrastructure.solver_config import EulerConfig
 from infrastructure.physics_config import PhysicsConfig
 from euler1d.solver import EulerSolver
-from infrastructure.results import ExactRiemannSolver, animate_comparison
+from infrastructure.results import ExactRiemannSolver, animate_comparison, animate_results
 
 
 
@@ -21,7 +21,7 @@ def random_Run():
     #NOTE: THESE KEY SOLVER PARAMETERS ARE FIXED ACROSS ALL SIMS
     N_cells = 1000
     domain_size = 1.0
-    t_max = 0.00075
+    t_max = 0.001
     dt = 1e-6
     N_ghost = 3
     gamma = 1.4
@@ -47,6 +47,9 @@ def random_Run():
         N_cells=N_cells,
         IC=physics_config.IC,
         BC=physics_config.BC,
+        QL=physics_config.Q_L,
+        QR=physics_config.Q_R,
+        x_split_percent=physics_config.domain_split_percent,
         t_max=t_max,
         dt=dt,
         gamma=gamma,
@@ -65,4 +68,5 @@ def random_Run():
 
 
 if __name__ == '__main__':
-    random_Run()
+    r=random_Run()
+    animate_results(r, interval = 5)

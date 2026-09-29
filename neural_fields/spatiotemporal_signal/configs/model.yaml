@@ -1,0 +1,25 @@
+model:
+  architecture:
+    input_features: 2
+    hidden_features: 64
+    hidden_layers: 4
+    output_features: 3
+
+  siren:
+    w0: 15.0
+    first_w0: 15.0
+
+  wire:
+    w0: 15.0
+    s0: 10.0
+    first_w0: 15.0
+    first_s0: 10.0
+
+training:
+  epochs: 1000
+  batch_size: 512
+  lr: 0.001
+  
+  optimization:
+    warm_opt: 0.0
+    opt_transition: 0

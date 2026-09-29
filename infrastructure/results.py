@@ -37,6 +37,12 @@ class EulerResults:
 
     config: EulerConfig
 
+
+    def __post_init__(self):
+        self.x_split = self.config.x_split_percent
+        self.Q_L = self.config.QL
+        self.Q_R = self.config.QR
+
 class ExactRiemannSolver:
     """
     Computes the exact solution to the 1D Euler Riemann problem at any (x, t).

@@ -13,15 +13,17 @@ Generates dataset for ML Training
 import numpy as np
 import os
 from run import random_Run
+from Sod_Shock_Tube_Validation import test_Sod_Shock
+from infrastructure.results import EulerResults
 
 # Dataset configuration parameters defined here
     #NOTE: MODIFY random_Run() IN run.py TO MODIFY SOLVER PARAMETERS
  
-N_samples = 20
+N_samples = 40
 
-percent_train = 0.8
-percent_test = 0.2
-percent_validate = 0.0
+percent_train = 0.75
+percent_test = 0.125
+percent_validate = 0.125
 
 # Save path (DO NOT MODIFY)
 data_path = os.path.join(os.getcwd(), "generated_data")
@@ -32,6 +34,19 @@ validate_save_path = os.path.join(data_path, "validate")
 
 
 def generate_Euler_Dataset():
+    def craft_ML_data(results : EulerResults, i : int, set_type : str):
+        if set_type == 'train':
+            save_path = train_save_path
+        elif set_type == 'test':
+            save_path = test_save_path
+        elif set_type == 'validate':
+            save_path = validate_save_path
+
+        Q_toSave = np.array(results.Q_hist)
+        np.save(os.path.join(save_path, f"{set_type}_{i}.npy"), Q_toSave)
+
+        init_cond = np.array([results.Q_L, results.Q_R, results.x_split*np.ones_like(results.Q_L)])
+        np.save(os.path.join(save_path, f"{set_type}_init_{i}.npy"), init_cond)
 
     # Create data storage folders if missing
     if not os.path.exists(data_path):
@@ -44,36 +59,41 @@ def generate_Euler_Dataset():
     N_test = int(N_samples*percent_test)
     N_validate = int(N_samples*percent_validate)
 
+    print('============================================')
+    print(f"Generating Cannonical Sod Shock Tube data")
+    print('============================================')
+    sod_result = test_Sod_Shock()
+    craft_ML_data(sod_result, -1, 'train')
+    print('============================================')
+    print(f"Saving Sod Shock Tube data")
+    print('============================================')
+
     for i in range(N_train):
         print('============================================')
         print(f"Generating train data {i+1}/{N_train}")
         print('============================================')
         train_result = random_Run()
-        Q_toSave = np.array(train_result.Q_hist)
-        np.save(os.path.join(train_save_path, f"train_{i}.npy"), Q_toSave)
+        craft_ML_data(train_result, i, 'train')
         print('============================================')
         print(f"Saving train data {i+1}/{N_train}")
         print('============================================')
-
     for i in range(N_test):
         print('============================================')
         print(f"Generating test data {i+1}/{N_test}")
         print('============================================')
         test_result = random_Run()
-        Q_toSave = np.array(test_result.Q_hist)
-        np.save(os.path.join(test_save_path, f"test_{i}.npy"), Q_toSave)
+        craft_ML_data(test_result, i, 'test')
         print('============================================')
-        print(f"Saving test data {i+1}/{N_train}")
+        print(f"Saving test data {i+1}/{N_test}")
         print('============================================')
     for i in range(N_validate):
         print('============================================')
         print(f"Generating validation data {i+1}/{N_validate}")
         print('============================================')
         validate_result = random_Run()
-        Q_toSave = np.array(validate_result.Q_hist)
-        np.save(os.path.join(validate_save_path, f"validate_{i}.npy"), Q_toSave)
+        craft_ML_data(validate_result, i, 'validate')
         print('============================================')
-        print(f"Saving validation data {i+1}/{N_train}")
+        print(f"Saving validation data {i+1}/{N_validate}")
         print('============================================')
 
 

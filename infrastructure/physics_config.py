@@ -33,6 +33,7 @@ class PhysicsConfig:
     N_cells
     gamma
     Q_L, Q_R
+    x_split
     IC
     domain_split_percent
     '''
@@ -44,6 +45,9 @@ class PhysicsConfig:
     # other parameters
     N_cells: int = field(default = 500) #N cells in domain
     gamma: float = field(default = 1.4) #ratio of specific heats
+
+    use_Sod: bool = field(default = False) #use the Sod shock tube setup
+
 
 
     def __post_init__(self):
@@ -62,20 +66,28 @@ class PhysicsConfig:
         P_L = pres_generator.uniform(10000., 125000)
         P_R = pres_generator.uniform(10000., 125000.)
 
-        # Primitive states
-        state_L = (rho_L, u_L, P_L)
-        state_R = (rho_R, u_R, P_R)
 
+        # Hardcode use Sod Shock Tube
+        if self.use_Sod:
+            rho_L, u_L, P_L = 1.0, 0, 100000.0
+            rho_R, u_R, P_R = 0.125, 0, 10000.0
+
+                    
         # conservative 
         self.Q_L = get_cons(rho_L, u_L, P_L, self.gamma)
         self.Q_R = get_cons(rho_R, u_R, P_R, self.gamma)
 
+
         #Init Condition of Conservative State Matrix
         self.IC = np.zeros((3, self.N_cells)) 
-        x_split = split_generator.integers(int(self.N_cells*0.2), int(self.N_cells*0.8), endpoint = True)
+        self.x_split = split_generator.integers(int(self.N_cells*0.2), int(self.N_cells*0.8), endpoint = True)
+        if self.use_Sod:
+            self.x_split = int(self.N_cells*0.5)
+        self.IC[:, self.x_split] = self.Q_L
         for i in range(self.N_cells):
-            self.IC[:, i] = self.Q_L if i < x_split else self.Q_R
+            self.IC[:, i] = self.Q_L if i < self.x_split else self.Q_R
 
         # domain split location in terms of %domain from the left
-        self.domain_split_percent = x_split/self.N_cells
+        self.domain_split_percent = self.x_split/self.N_cells
 
+        

@@ -1,5 +1,6 @@
 import numpy as np
 from infrastructure.solver_config import EulerConfig
+from infrastructure.physics_config import PhysicsConfig
 from euler1d.solver import EulerSolver
 from infrastructure.results import ExactRiemannSolver, animate_comparison
 
@@ -39,25 +40,22 @@ def test_Sod_Shock():
     state_L = (rho_L, u_L, P_L)
     state_R = (rho_R, u_R, P_R)
 
-    def get_cons(rho, u, P, gamma):
-        mom = rho * u
-        E = (P / (gamma - 1.0)) + 0.5 * rho * u**2
-        return np.array([rho, mom, E])
 
-    Q_L = get_cons(rho_L, u_L, P_L, gamma)
-    Q_R = get_cons(rho_R, u_R, P_R, gamma)
-
-    # Initial Condition Matrix (3, N_cells)
-    IC = np.zeros((3, N_cells))
-    x_split = N_cells // 2
-    for i in range(N_cells):
-        IC[:, i] = Q_L if i < x_split else Q_R
+    physics_config = PhysicsConfig(
+        BC='Zero-Gradient',
+        N_cells=N_cells,
+        gamma=gamma,
+        use_Sod=True
+    )
 
     config = EulerConfig(
         domain_size=domain_size,
         N_cells=N_cells,
-        IC=IC,
-        BC='Zero-Gradient',
+        IC=physics_config.IC,
+        BC=physics_config.BC,
+        QL=physics_config.Q_L,
+        QR=physics_config.Q_R,
+        x_split_percent=physics_config.domain_split_percent,
         t_max=t_max,
         dt=dt,
         gamma=gamma,
@@ -76,6 +74,7 @@ def test_Sod_Shock():
 
     # Animate
     animate_comparison(results, exact_solver)
+    return results
 
 
 if __name__ == '__main__':
