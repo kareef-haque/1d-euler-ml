@@ -63,7 +63,7 @@ def generate_Euler_Dataset():
         Q_toSave = np.array(test_result.Q_hist)
         np.save(os.path.join(test_save_path, f"test_{i}.npy"), Q_toSave)
         print('============================================')
-        print(f"Saving test data {i+1}/{N_train}")
+        print(f"Saving test data {i+1}/{N_test}")
         print('============================================')
     for i in range(N_validate):
         print('============================================')
@@ -73,7 +73,7 @@ def generate_Euler_Dataset():
         Q_toSave = np.array(validate_result.Q_hist)
         np.save(os.path.join(validate_save_path, f"validate_{i}.npy"), Q_toSave)
         print('============================================')
-        print(f"Saving validation data {i+1}/{N_train}")
+        print(f"Saving validation data {i+1}/{N_validate}")
         print('============================================')
 
 

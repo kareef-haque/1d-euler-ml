@@ -37,125 +37,7 @@ class EulerResults:
 
     config: EulerConfig
 
-class ExactRiemannSolver:
-    """
-    Computes the exact solution to the 1D Euler Riemann problem at any (x, t).
-    """
-    def __init__(self, state_L, state_R, x_interface=0.5, gamma=1.4):
-        self.rho_L, self.u_L, self.P_L = state_L
-        self.rho_R, self.u_R, self.P_R = state_R
-        self.x_int = x_interface
-        self.gamma = gamma
-
-        self.a_L = np.sqrt(gamma * self.P_L / self.rho_L)
-        self.a_R = np.sqrt(gamma * self.P_R / self.rho_R)
-
-        # Solve for star region pressure (P_star) and velocity (u_star)
-        self.P_star = self._solve_p_star()
-        self.u_star = 0.5 * (self.u_L + self.u_R) + 0.5 * (self._f(self.P_star, 'R') - self._f(self.P_star, 'L'))
-
-        # Star densities
-        self.rho_star_L = self._calc_rho_star(self.P_star, 'L')
-        self.rho_star_R = self._calc_rho_star(self.P_star, 'R')
-
-    def _f_k(self, P, state_type):
-        P_k = self.P_L if state_type == 'L' else self.P_R
-        rho_k = self.rho_L if state_type == 'L' else self.rho_R
-        a_k = self.a_L if state_type == 'L' else self.a_R
-        g = self.gamma
-
-        if P > P_k:  # Shock wave
-            A_k = 2.0 / ((g + 1.0) * rho_k)
-            B_k = (g - 1.0) / (g + 1.0) * P_k
-            return (P - P_k) * np.sqrt(A_k / (P + B_k))
-        else:        # Rarefaction wave
-            return (2.0 * a_k / (g - 1.0)) * ((P / P_k)**((g - 1.0) / (2.0 * g)) - 1.0)
-
-    def _f(self, P, state_type):
-        return self._f_k(P, state_type)
-
-    def _solve_p_star(self):
-        # Two-shock approximation initial guess for root finder
-        g = self.gamma
-        p_pv = max(1e-6, 0.5 * (self.P_L + self.P_R) - 0.125 * (self.u_R - self.u_L) * (self.rho_L + self.rho_R) * (self.a_L + self.a_R))
-        
-        func = lambda P: self._f_k(P, 'L') + self._f_k(P, 'R') + (self.u_R - self.u_L)
-        
-        try:
-            res = root_scalar(func, x0=p_pv, bracket=[1e-8, max(self.P_L, self.P_R) * 10.0], method='brentq')
-            return res.root
-        except ValueError:
-            return max(1e-6, p_pv)
-
-    def _calc_rho_star(self, P_star, state_type):
-        P_k = self.P_L if state_type == 'L' else self.P_R
-        rho_k = self.rho_L if state_type == 'L' else self.rho_R
-        g = self.gamma
-
-        if P_star > P_k:  # Shock
-            return rho_k * ((P_star / P_k + (g - 1.0) / (g + 1.0)) / 
-                           ((g - 1.0) / (g + 1.0) * (P_star / P_k) + 1.0))
-        else:             # Rarefaction
-            return rho_k * (P_star / P_k)**(1.0 / g)
-
-    def sample(self, x_grid, t):
-        if t <= 1e-12:
-            rho = np.where(x_grid < self.x_int, self.rho_L, self.rho_R)
-            u   = np.where(x_grid < self.x_int, self.u_L, self.u_R)
-            P   = np.where(x_grid < self.x_int, self.P_L, self.P_R)
-            return rho, u, P
-
-        S = (x_grid - self.x_int) / t
-        g = self.gamma
-        
-        rho = np.zeros_like(x_grid)
-        u   = np.zeros_like(x_grid)
-        P   = np.zeros_like(x_grid)
-
-        for i, s in enumerate(S):
-            if s < self.u_star:  # Left of contact discontinuity
-                if self.P_star > self.P_L:  # Left Shock
-                    S_L = self.u_L - self.a_L * np.sqrt((g + 1.0) / (2.0 * g) * (self.P_star / self.P_L) + (g - 1.0) / (2.0 * g))
-                    if s < S_L:
-                        rho[i], u[i], P[i] = self.rho_L, self.u_L, self.P_L
-                    else:
-                        rho[i], u[i], P[i] = self.rho_star_L, self.u_star, self.P_star
-                else:  # Left Rarefaction
-                    SH_L = self.u_L - self.a_L
-                    a_star_L = self.a_L * (self.P_star / self.P_L)**((g - 1.0) / (2.0 * g))
-                    ST_L = self.u_star - a_star_L
-                    if s < SH_L:
-                        rho[i], u[i], P[i] = self.rho_L, self.u_L, self.P_L
-                    elif s > ST_L:
-                        rho[i], u[i], P[i] = self.rho_star_L, self.u_star, self.P_star
-                    else:  # Inside fan
-                        u[i] = 2.0 / (g + 1.0) * (self.a_L + (g - 1.0) / 2.0 * self.u_L + s)
-                        a_fan = 2.0 / (g + 1.0) * (self.a_L + (g - 1.0) / 2.0 * (self.u_L - s))
-                        rho[i] = self.rho_L * (a_fan / self.a_L)**(2.0 / (g - 1.0))
-                        P[i] = self.P_L * (a_fan / self.a_L)**(2.0 * g / (g - 1.0))
-
-            else:  # Right of contact discontinuity
-                if self.P_star > self.P_R:  # Right Shock
-                    S_R = self.u_R + self.a_R * np.sqrt((g + 1.0) / (2.0 * g) * (self.P_star / self.P_R) + (g - 1.0) / (2.0 * g))
-                    if s > S_R:
-                        rho[i], u[i], P[i] = self.rho_R, self.u_R, self.P_R
-                    else:
-                        rho[i], u[i], P[i] = self.rho_star_R, self.u_star, self.P_star
-                else:  # Right Rarefaction
-                    SH_R = self.u_R + self.a_R
-                    a_star_R = self.a_R * (self.P_star / self.P_R)**((g - 1.0) / (2.0 * g))
-                    ST_R = self.u_star + a_star_R
-                    if s > SH_R:
-                        rho[i], u[i], P[i] = self.rho_R, self.u_R, self.P_R
-                    elif s < ST_R:
-                        rho[i], u[i], P[i] = self.rho_star_R, self.u_star, self.P_star
-                    else:  # Inside fan
-                        u[i] = 2.0 / (g + 1.0) * (-self.a_R + (g - 1.0) / 2.0 * self.u_R + s)
-                        a_fan = 2.0 / (g + 1.0) * (self.a_R - (g - 1.0) / 2.0 * (self.u_R - s))
-                        rho[i] = self.rho_R * (a_fan / self.a_R)**(2.0 / (g - 1.0))
-                        P[i] = self.P_R * (a_fan / self.a_R)**(2.0 * g / (g - 1.0))
-
-        return rho, u, P
+from infrastructure.exact import ExactRiemannSolver
 
 
 
@@ -330,7 +212,6 @@ def animate_comparison(results, exact_solver, interval=30):
         fig, update, frames=len(results.t_hist),
         init_func=init, blit=True, interval=interval
     )
-
     plt.tight_layout()
     plt.show()
     return anim

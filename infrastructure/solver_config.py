@@ -19,7 +19,7 @@ class EulerConfig:
     N_cells: int #number of cells
 
     #initial conditions
-    IC: np.ndarray #(3, N_cells) Initial Condition of Primative State Matrix
+    IC: np.ndarray #(3, N_cells) Initial Condition of Conservative State Matrix
 
     #boundary conditions
     BC: str = field(default = 'Zero-Gradient') #Zero-Gradient, Reflective, Periodical
@@ -35,8 +35,9 @@ class EulerConfig:
 
     def __post_init__(self):
         self.dx = self.domain_size / self.N_cells  # m
-        self.IC[0, :] = np.maximum(1e-9*np.zeros_like(self.IC[0, :]), self.IC[0, :]) #set initial density to avoid division by zero
-        self.IC[2, :] = np.maximum(1e-9*np.zeros_like(self.IC[2, :]), self.IC[2, :]) #set initial pressure to avoid division by zero
+        self.IC = np.array(self.IC, dtype=float)  #own copy, caller's array is not modified
+        self.IC[0, :] = np.maximum(self.IC[0, :], 1e-9) #density floor
+        self.IC[2, :] = np.maximum(self.IC[2, :], 1e-9) #total energy floor
 
 
 
@@ -57,4 +58,3 @@ def prim_to_cons(R, gamma = 1.4):
     mom = rho * R[1]
     E = R[2]/(gamma - 1) + 0.5 * rho * R[1]**2
     return np.array([rho, mom, E])
-

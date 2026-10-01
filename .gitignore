@@ -10,6 +10,11 @@ __pycache__/
 
 # Ignore .mp4 files
 *.mp4
+*.npz
+*.png
 
 # Ignore stored generated data
 generated_data
+runs
+eval_out
+ablation_screen

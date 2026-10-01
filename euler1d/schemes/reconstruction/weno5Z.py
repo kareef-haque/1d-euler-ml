@@ -96,15 +96,10 @@ def WENO5Z(Q, dx = 1.0):
     QL = np.sum(omegaL*pL, axis = 0)
     QR = np.sum(omegaR*pR, axis = 0)      
 
-    #clamp to positivy? 
+    #density positivity only (momentum may be negative)
     QL[0] = np.maximum(1e-10, QL[0])
-    QL[1] = np.maximum(1e-10, QL[1])
 
     QR[0] = np.maximum(1e-10, QR[0])
-    QR[1] = np.maximum(1e-10, QR[1])
 
 
     return (QL, QR)
-
-
-  
