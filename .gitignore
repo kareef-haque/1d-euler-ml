@@ -12,6 +12,9 @@ __pycache__/
 *.mp4
 *.npz
 *.png
+*.pt
+*.json
+*.jsonl
 
 # Ignore stored generated data
 generated_data
