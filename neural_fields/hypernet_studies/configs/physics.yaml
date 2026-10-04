@@ -1,0 +1,12 @@
+physical_scaling:
+  L0: 1.0
+  t0: 1.0
+  U0: 100.0
+  rho0: 1.225
+  P0: 101325.0
+flow_parameters:
+  gamma: 1.4
+normalize:
+  rho: 1.0
+  u: 374.16573867739413
+  P: 100000.0

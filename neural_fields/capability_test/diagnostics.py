@@ -7,12 +7,12 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import yaml
 
-from neural_fields.spatiotemporal_signal.models import INR, SIREN, WIRE
+from neural_fields.capability_test.models import INR, SIREN, WIRE
 from infrastructure.results import ExactRiemannSolver
 
 
 def visualize_model(model, 
-                    phys_config = r'.\neural_fields\spatiotemporal_signal\configs\physics.yaml', 
+                    phys_config = r'.\neural_fields\capability_test\configs\physics.yaml', 
                     device = 'cpu'):
     
     N_samp = 500

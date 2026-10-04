@@ -1,0 +1,37 @@
+model:
+  architecture:
+    input_features: 2
+    hidden_features: 64
+    hidden_layers: 4
+    output_features: 3
+
+  siren:
+    w0: 15.0
+    first_w0: 15.0
+
+  wire:
+    w0: 15.0
+    s0: 10.0
+    first_w0: 15.0
+    first_s0: 10.0
+
+  training:
+    epochs: 75
+    batch_size: 512
+    lr: 0.001
+    
+
+hypernetwork:
+  trunk_architecture:
+    hidden_features: 64
+    hidden_layers: 2
+    output_features: 16
+  training:
+    epochs: 50
+    batch_size: 4096
+    lr: 0.0001
+    
+
+  optimization:
+    warm_opt: 0.0
+    opt_transition: 0

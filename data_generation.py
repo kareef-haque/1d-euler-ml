@@ -19,11 +19,11 @@ from infrastructure.results import EulerResults
 # Dataset configuration parameters defined here
     #NOTE: MODIFY random_Run() IN run.py TO MODIFY SOLVER PARAMETERS
  
-N_samples = 40
+N_samples = 32
 
-percent_train = 0.75
-percent_test = 0.125
-percent_validate = 0.125
+percent_train = 0.66
+percent_test = 0.33/2
+percent_validate = 0.33/2
 
 # Save path (DO NOT MODIFY)
 data_path = os.path.join(os.getcwd(), "generated_data")

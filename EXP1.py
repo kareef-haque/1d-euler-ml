@@ -1,6 +1,6 @@
-from neural_fields.spatiotemporal_signal.diagnostics import visualize_model
-from neural_fields.spatiotemporal_signal.models import INR, SIREN, WIRE
-from neural_fields.spatiotemporal_signal.preprocess import SodPreprocessor
+from neural_fields.capability_test.diagnostics import visualize_model
+from neural_fields.capability_test.models import INR, SIREN, WIRE
+from neural_fields.preprocess import SodPreprocessor
 import torch
 
 

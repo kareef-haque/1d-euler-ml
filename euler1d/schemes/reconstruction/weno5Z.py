@@ -98,10 +98,10 @@ def WENO5Z(Q, dx = 1.0):
 
     #clamp to positivy? 
     QL[0] = np.maximum(1e-10, QL[0])
-    QL[1] = np.maximum(1e-10, QL[1])
+#     QL[1] = np.maximum(1e-10, QL[1])
 
     QR[0] = np.maximum(1e-10, QR[0])
-    QR[1] = np.maximum(1e-10, QR[1])
+#     QR[1] = np.maximum(1e-10, QR[1])
 
 
     return (QL, QR)

@@ -60,8 +60,8 @@ class PhysicsConfig:
         rho_R = dens_generator.uniform(0.1, 2.5)
 
         #normal chosen to center around u = 0, like in the sod shock tube setup
-        u_L = vel_generator.normal(0., 5.) 
-        u_R = vel_generator.normal(0., 5.) 
+        u_L = 0 #vel_generator.normal(0., 5.) 
+        u_R = 0 #vel_generator.normal(0., 5.) 
 
         P_L = pres_generator.uniform(10000., 125000)
         P_R = pres_generator.uniform(10000., 125000.)

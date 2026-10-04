@@ -15,12 +15,12 @@ import os
 import yaml
 import warnings
 
-from neural_fields.spatiotemporal_signal.models import INR, SIREN, WIRE
-from preprocess import SodPreprocessor
+from neural_fields.capability_test.models import INR, SIREN, WIRE
+from neural_fields.preprocess import SodPreprocessor
 
 
 
-def train_model(NF_def, model_type = 'neural_field', config  =r'.\neural_fields\spatiotemporal_signal\configs'):
+def train_model(NF_def, model_type = 'neural_field', config  =r'.\neural_fields\capability_test\configs'):
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
     warnings.filterwarnings("ignore")
