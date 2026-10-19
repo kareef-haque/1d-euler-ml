@@ -2,6 +2,7 @@
 Sod shock tube: plot and error table for several NFV checkpoints (e.g. ablation variants).
 
 python plot_sod_ablation.py "ablation/*/model_final.pt" --out sod_ablation.png
+Panels: mass density, momentum, total energy (--vars prim: density, velocity, pressure).
 Label = run folder name (<variant>_s<seed>). Patterns are expanded here, so quote them.
 '''
 import argparse
@@ -26,6 +27,18 @@ def prim(P):
     return rho, u, 0.4 * (P[2] - 0.5 * P[0] * u**2)
 
 
+def cons_of_prim(rho, u, p):
+    return rho, rho * u, p / 0.4 + 0.5 * rho * u**2
+
+
+def cons(P):
+    return P[0], P[1], P[2]
+
+
+VARS = {'cons': (['mass density', 'momentum', 'total energy'], cons, cons_of_prim),
+        'prim': (['density', 'velocity', 'pressure'], prim, lambda *x: x)}
+
+
 def labels_for(paths):
     lab = {}
     for p in paths:
@@ -45,6 +58,7 @@ def main(argv=None):
     ap.add_argument('--nt', type=int, default=100)
     ap.add_argument('--dx', type=float, default=1e-3)
     ap.add_argument('--xlim', type=float, nargs=2, default=None, help='zoom, e.g. --xlim 0.15 0.26')
+    ap.add_argument('--vars', default='cons', choices=['cons', 'prim'], help='panels: conservative or primitive variables')
     ap.add_argument('--no_classical', action='store_true')
     a = ap.parse_args(argv)
 
@@ -79,15 +93,16 @@ def main(argv=None):
 
     e = np.arange(a.nx + 1) * a.dx
     xc, xs = (e[:-1] + e[1:]) / 2, np.linspace(0, a.nx * a.dx, 3000)
-    ex_pr = ex.sample(xs, t)
+    names, of_P, of_prim = VARS[a.vars]
+    ex_pr = of_prim(*ex.sample(xs, t))
     fig, ax = plt.subplots(3, 1, figsize=(8, 9), sharex=True)
     cm = plt.get_cmap('tab10')
-    for j, ylab in enumerate(['density', 'velocity', 'pressure']):
+    for j, ylab in enumerate(names):
         ax[j].plot(xs, ex_pr[j], 'k-', lw=1.2, label='exact')
         k = 0
         for name, P in sols.items():
             cl = name in CLASSICAL
-            ax[j].plot(xc, prim(P)[j], '--' if cl else '-', lw=1 if cl else 1.3, color='gray' if cl else cm(k % 10),
+            ax[j].plot(xc, of_P(P)[j], '--' if cl else '-', lw=1 if cl else 1.3, color='gray' if cl else cm(k % 10),
                        alpha=0.8 if cl else 1, label=name)
             k += 0 if cl else 1
         ax[j].set_ylabel(ylab)
