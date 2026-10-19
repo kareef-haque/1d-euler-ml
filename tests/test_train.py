@@ -132,3 +132,60 @@ def test_loss_is_scaled_mse():
     e = ((P - ref) / torch.as_tensor(scaling.QS).view(1, 1, 3, 1)).pow(2).mean()
     want = ((0.01 * ref) / torch.as_tensor(scaling.QS).view(1, 1, 3, 1)).pow(2).mean()
     assert torch.allclose(e, want)
+
+
+def test_phys_flux_matches_numpy():
+    from euler1d.neural import consistency
+    from euler1d.neural.diagnostics import flux_of
+    d = make_set(2, 10, 5, DX, 'train', 0, dtype=np.float64)
+    S = torch.from_numpy(consistency.pick(torch.from_numpy(d['Q']), 50).numpy())
+    assert np.allclose(consistency.phys_flux(S).numpy(), flux_of(S.numpy()), rtol=1e-12)
+
+
+def test_penalty_value_and_offset(monkeypatch):
+    from euler1d.neural import consistency
+    d = make_set(2, 10, 5, DX, 'train', 0, dtype=np.float64)
+    Q, m = torch.from_numpy(d['Q']), NFVModel(2, 1, dtype=torch.float64)
+    off = torch.tensor([0.3, -0.7, 0.1], dtype=torch.float64)
+    fs = torch.as_tensor(scaling.FS)
+    monkeypatch.setattr(consistency, 'flux_at', lambda model, S: consistency.phys_flux(S))
+    assert consistency.penalty(m, Q) < 1e-20
+    monkeypatch.setattr(consistency, 'flux_at', lambda model, S: consistency.phys_flux(S) + off * fs)
+    assert torch.allclose(consistency.penalty(m, Q), off.pow(2).mean())
+
+
+def test_penalty_has_gradients_and_fixed_generator():
+    from euler1d.neural import consistency
+    d = make_set(2, 10, 5, DX, 'train', 0, dtype=np.float64)
+    Q, m = torch.from_numpy(d['Q']), NFVModel(2, 3, dtype=torch.float64)
+    consistency.penalty(m, Q).backward()
+    assert all(p.grad is not None and torch.isfinite(p.grad).all() and p.grad.abs().sum() > 0 for p in m.parameters())
+    a = consistency.penalty(m, Q, 100, gen=torch.Generator().manual_seed(1))
+    b = consistency.penalty(m, Q, 100, gen=torch.Generator().manual_seed(1))
+    assert a == b
+
+
+def test_training_with_penalty_logs_and_lowers_it(tmp_path):
+    kw = dict(schedule='150:1e-3:10:10', eval_every=75)
+    o0 = train_nfv.main(argv(tmp_path, out=str(tmp_path / 'o0'), **kw))
+    o1 = train_nfv.main(argv(tmp_path, out=str(tmp_path / 'o1'), cons_coef=1.0, **kw))
+    L0, L1 = logs(o0), logs(o1)
+    assert json.load(open(o1 + '/config.json'))['cons_coef'] == 1.0
+    assert all(np.isfinite(r['pen']) and np.isfinite(r['fit']) for r in L0 + L1)
+    assert L0[-1]['loss'] == L0[-1]['fit'] and L1[-1]['loss'] >= L1[-1]['fit']
+    assert L1[-1]['pen'] < L0[-1]['pen']
+
+
+def test_box_states_and_modes():
+    from euler1d.neural import consistency
+    from infrastructure.nfv_dataset import RHO, P
+    Q = torch.from_numpy(make_set(2, 10, 5, DX, 'train', 0, dtype=np.float64)['Q'])
+    S = consistency.box(4000, Q, umax=450.0)
+    rho, u = S[:, 0], S[:, 1] / S[:, 0]
+    p = 0.4 * (S[:, 2] - 0.5 * rho * u**2)
+    assert rho.min() >= RHO[0] and rho.max() <= RHO[1] and p.min() >= P[0] - 1e-6 and p.max() <= P[1] + 1e-6
+    assert u.abs().max() <= 450 and (u.abs() > 250).float().mean() > 0.3
+    assert len(consistency.states(Q, 101, 'mix')) == 101 and len(consistency.states(Q, 50, 'box')) == 50
+    with pytest.raises(ValueError):
+        consistency.states(Q, 5, 'nope')
+    assert (consistency.states(Q, 4000, 'data')[:, 1] / consistency.states(Q, 4000, 'data')[:, 0]).abs().max() < 450

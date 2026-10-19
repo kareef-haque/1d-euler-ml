@@ -60,6 +60,8 @@ def test_ablation_driver_end_to_end_and_resume(tmp_path, monkeypatch):
     assert (tmp_path / 'ab' / 'summary.json').exists() and (tmp_path / 'ab' / 'gdt_s1' / 'result.json').exists()
     r = json.load(open(tmp_path / 'ab' / 'base_s0' / 'result.json'))
     assert r['H'] == 10 and 'cons' in r and np.isfinite(r['test']['l2h'])
+    assert set(r['sod']['rh']) == {'contact', 'shock'} and len(r['sod']['rh']['shock']) == 3
+    assert set(S['base']) >= {'cons_raw', 'shock_mom', 'cont_en', 'plat'} and len(S['base']['shock_mom']) == 2
     calls = {'n': 0}
     real = train_nfv.main
     monkeypatch.setattr(train_nfv, 'main', lambda *a, **k: calls.__setitem__('n', calls['n'] + 1) or real(*a, **k))
@@ -71,3 +73,9 @@ def test_ablation_records_failures(tmp_path, monkeypatch):
     monkeypatch.setattr(train_nfv, 'bad', lambda gn, loss: True)
     S = ablate_nfv.main(small_args(tmp_path, variants='base,relu'))
     assert all(s['n_ok'] == 0 and s['failed_at'] == [0] for s in S.values())
+
+
+def test_penalty_variant_passes_weight(tmp_path):
+    S = ablate_nfv.main(small_args(tmp_path, variants='c01'))
+    assert json.load(open(tmp_path / 'ab' / 'c01_s0' / 'config.json'))['cons_coef'] == 0.1
+    assert S['c01']['n_ok'] == 1 and np.isfinite(S['c01']['cons_raw'][0])

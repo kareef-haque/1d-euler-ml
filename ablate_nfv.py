@@ -1,13 +1,3 @@
-'''
-Ablation driver for vanilla NFV.
-
-Trains each (variant, seed) with the same schedule, restarts disabled (a failed run is recorded,
-not hidden), then evaluates the final model on the held-out TEST split against first-order HLLC.
-Resumable: finished runs are skipped. Results: <out>/<variant>_s<seed>/result.json and <out>/summary.json
-
-variants: base (a=2, b=1, ELU), a4, a6, b3, a4b5 (stencil / time history), relu (activation),
-          gdt (global dt instead of per-sample dt for the training data)
-'''
 import argparse
 import json
 import os
@@ -15,6 +5,7 @@ import time
 import numpy as np
 
 import train_nfv
+import sod_plateaus as sp
 from euler1d.neural import evaluate as ev, diagnostics as dg
 from euler1d.neural.model import NFVModel
 
@@ -26,6 +17,9 @@ VARIANTS = {
     'a4b5': {'a': 4, 'b': 5},
     'relu': {'act': 'ReLU'},
     'gdt': {'dt_mode': 'global'},
+    'c001': {'cons_coef': 0.01},
+    'c01': {'cons_coef': 0.1},
+    'c1': {'cons_coef': 1.0},
 }
 SCHEDULE = '10000:1e-4:10:10,20000:1e-5:50:50,20000:5e-6:100:100'
 
@@ -67,6 +61,8 @@ def train_eval(variant, seed, a):
         r['H'] = H
         c = dg.consistency_error(model, states=dg.states_from_set(d))
         r['cons'] = {k: v.tolist() for k, v in c.items()}
+        m = NFVModel.load(os.path.join(out, 'model_final.pt'))
+        r['sod'] = dict(plateau=sp.plateaus(m), rh={w: v['over_FS'] for w, v in sp.rh_residual(sp.nfv_diag_flux(m)).items()})
     json.dump(r, open(res_path, 'w'), indent=1, default=float)
     return r
 
@@ -86,21 +82,33 @@ def summarize(runs):
             ratio_h=[x['ratioh'] for x in t], win_h=[x['winh'] for x in t],
             ratio_full=[x['ratio'] for x in t], n_div_full=[x['n_div'] for x in t],
             cons_shift=[float(np.mean(np.array(r['cons']['err_shift']) / np.array(r['cons']['ref_std']))) for r in ok],
+            cons_raw=[float(np.mean(np.array(r['cons']['err']) / np.array(r['cons']['ref_std']))) for r in ok],
+            shock_mom=[r['sod']['rh']['shock'][1] for r in ok if 'sod' in r],
+            cont_en=[r['sod']['rh']['contact'][2] for r in ok if 'sod' in r],
+            plat=[float(np.mean([abs(v) for s in 'LR' for v in r['sod']['plateau'][s].values()])) for r in ok if 'sod' in r],
             sec=[r['sec'] for r in R],
             failed_at=[r['steps_done'] for r in R if r['failed']])
     return out
 
 
+def span(x, f='{:+.3f}'):
+    return f"{f.format(min(x))}..{f.format(max(x))}" if x else '-'
+
+
 def show(S, H):
     print(f"\nTEST split. ratio = first-order HLLC error / model error (higher is better); h = {H} steps\n")
     print(f"{'variant':8s} {'ok':>5s} {'params':>7s} {'ratio_h med [min,max]':>24s} {'win_h':>6s} {'ratio@full':>11s} "
-          f"{'diverged':>9s} {'flux err/spread':>16s} {'h/run':>6s}  failed at step")
+          f"{'diverged':>9s} {'flux err/spread':>16s} {'raw':>6s} {'h/run':>6s}  failed at step")
     for v, s in S.items():
         rh = s['ratio_h']
         rng = f"{med(rh):.2f} [{min(rh):.2f},{max(rh):.2f}]" if rh else '-'
         print(f"{v:8s} {s['n_ok']}/{s['n']:<3d} {str(s['params']):>7s} {rng:>24s} {100 * med(s['win_h']):5.0f}% "
               f"{med(s['ratio_full']):11.2f} {med(s['n_div_full']):9.0f} {med(s['cons_shift']):16.2f} "
-              f"{med(s['sec']) / 3600:6.1f}  {s['failed_at'] or ''}")
+              f"{med(s['cons_raw']):6.2f} {med(s['sec']) / 3600:6.1f}  {s['failed_at'] or ''}")
+    print(f"\nSod diagnosis. RH residual / FS (0 = consistent), mean |plateau error| vs exact\n")
+    print(f"{'variant':8s} {'shock momentum':>18s} {'contact energy':>18s} {'plateau err':>14s}")
+    for v, s in S.items():
+        print(f"{v:8s} {span(s['shock_mom']):>18s} {span(s['cont_en']):>18s} {span([100 * x for x in s['plat']], '{:.1f}%'):>14s}")
 
 
 def main(argv=None):

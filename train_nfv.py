@@ -1,11 +1,3 @@
-'''
-Supervised NFV training, as in the paper:
-- autoregressive rollout on exact Riemann solutions, curriculum in (nx, nt)
-- MSE on Q / QS, Adam, grad-norm clip, restart on non-finite loss or dead gradients
-- one optimizer step per "step" of the schedule
-
---schedule steps:lr:nx:nt,...   (default: the paper's four stages)
-'''
 import argparse
 import copy
 import json
@@ -15,7 +7,7 @@ import numpy as np
 import torch
 
 from infrastructure.nfv_dataset import make_set, save_set, load_set, fname
-from euler1d.neural import scaling, stepper
+from euler1d.neural import scaling, stepper, consistency
 from euler1d.neural import evaluate as ev
 from euler1d.neural.model import NFVModel
 from euler1d.neural.diagnostics import consistency_error
@@ -46,6 +38,10 @@ def parse(argv=None):
     p.add_argument('--n_train', type=int, default=2048)
     p.add_argument('--batch_size', type=int, default=256)
     p.add_argument('--loss_coef', type=float, default=1.0)
+    p.add_argument('--cons_coef', type=float, default=0.0, help='weight of the consistency penalty (0 = off)')
+    p.add_argument('--cons_states', default='mix', choices=['data', 'box', 'mix'], help='where the penalty is evaluated')
+    p.add_argument('--cons_umax', type=float, default=450.0, help='velocity range of the box states (m/s)')
+    p.add_argument('--cons_n', type=int, default=512, help='states per step for the penalty')
     p.add_argument('--grad_clip', type=float, default=1.0)
     p.add_argument('--dx', type=float, default=1e-3)
     p.add_argument('--cfl', type=float, default=0.5)
@@ -101,10 +97,14 @@ def attempt(args, dev, out, k, ed, Pbase):
         tgt = Q[..., G:Q.shape[-1] - G]
         bs = min(args.batch_size or n, n)
         opt = torch.optim.Adam(model.parameters(), lr=lr)
+        fixed = Q[:64]
         for it in range(steps):
             idx = torch.randperm(n, device=dev)[:bs]
             P = stepper.rollout(model, Q[idx], G, dt[idx], dx, 'exact')
-            loss = args.loss_coef * ((P[:, args.b:] - tgt[idx][:, args.b:]) / qs).pow(2).mean()
+            fit = args.loss_coef * ((P[:, args.b:] - tgt[idx][:, args.b:]) / qs).pow(2).mean()
+            loss = fit
+            if args.cons_coef > 0:
+                loss = fit + args.cons_coef * consistency.penalty(model, Q[idx], args.cons_n, mode=args.cons_states, umax=args.cons_umax)
             opt.zero_grad()
             loss.backward()
             gn = torch.nn.utils.clip_grad_norm_(model.parameters(), float('inf')).item()
@@ -116,12 +116,16 @@ def attempt(args, dev, out, k, ed, Pbase):
             if it % args.eval_every == 0 or it == steps - 1:
                 r = ev.evaluate(model, ed, Pbase, nt)
                 c = consistency_error(copy.deepcopy(model).cpu())
-                rec = dict(attempt=k, step=step, stage=si, nx=nx, nt=nt, lr=lr, loss=loss.item(), gradnorm=gn,
+                with torch.no_grad():
+                    pen, pen_data = (consistency.penalty(model, fixed, 2000, gen=torch.Generator(device=dev).manual_seed(0),
+                                                         mode=m, umax=args.cons_umax).item() for m in ('box', 'data'))
+                rec = dict(attempt=k, step=step, stage=si, nx=nx, nt=nt, lr=lr, loss=loss.item(), fit=fit.item(), pen=pen, pen_data=pen_data,
+                           gradnorm=gn,
                            cons={k: v.tolist() for k, v in c.items()},
                            sec=round(time.time() - t0, 1), **r)
                 logf.write(json.dumps(rec) + '\n')
                 logf.flush()
-                print(f"[{si}] step {step:6d} loss={rec['loss']:.3e} gn={gn:.2e} | L2={r['l2']:.3e} "
+                print(f"[{si}] step {step:6d} loss={rec['loss']:.3e} fit={rec['fit']:.3e} pen={pen:.3e} (data {pen_data:.3e}) gn={gn:.2e} | L2={r['l2']:.3e} "
                       f"(base {r['base_l2']:.3e}) win={100 * r['win']:.0f}% div={r['n_div']} | "
                       f"h={nt}: L2={r['l2h']:.3e} (base {r['base_l2h']:.3e}) win={100 * r['winh']:.0f}%")
                 save(f'model_{step}.pt', stage=si)
