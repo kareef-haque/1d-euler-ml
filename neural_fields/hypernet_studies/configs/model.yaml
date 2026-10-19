@@ -17,7 +17,7 @@ model:
 
   training:
     epochs: 75
-    batch_size: 512
+    batch_size: 2048
     lr: 0.001
     
 
@@ -27,11 +27,11 @@ hypernetwork:
     hidden_layers: 2
     output_features: 16
   training:
-    epochs: 50
-    batch_size: 4096
-    lr: 0.0001
+    epochs: 75
+    batch_size: 2048
+    lr: 1.0e-3
     
 
-  optimization:
-    warm_opt: 0.0
-    opt_transition: 0
+optimization:
+  lr_min: 1.0e-6
+  weight_decay: 5.0e-2

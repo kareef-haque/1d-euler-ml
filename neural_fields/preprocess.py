@@ -69,8 +69,7 @@ def phys_normalize(R_flat,
 
 
 def SodPreprocessor(config = r'.\neural_fields\capability_test\configs\physics.yaml', 
-                    Sod_Path = './generated_data/train/train_-1.npy',
-                    train_test_split = 0.80):
+                    Sod_Path = './generated_data/train/train_-1.npy'):
 
     Q_hist = np.load(file=Sod_Path,
                      mmap_mode = 'r') # (N_time, 3, N_cell)
@@ -94,19 +93,8 @@ def SodPreprocessor(config = r'.\neural_fields\capability_test\configs\physics.y
     # flatten the data
     R_flat = R_hist.transpose(0, 2, 1).reshape(-1, 3)  # (N_time*N_cell, 3)
 
-    #split into sets
-    mask = np.full(R_flat.shape[0], False)
-    mask[:int(R_flat.shape[0]*train_test_split)] = True
-    np.random.shuffle(mask)
-    
-
     # z-standardize the data
-    R_norm = z_normalize(R_flat)
-
-
-    # split into train and test sets
-    train_flow = R_norm[mask]
-    test_flow = R_norm[~mask]
+    R_norm = phys_normalize(R_flat)
 
 
     x = np.linspace(-1, 1, N_cell)
@@ -118,15 +106,33 @@ def SodPreprocessor(config = r'.\neural_fields\capability_test\configs\physics.y
     t_flat = t_mesh.T.flatten()  # shape: (N_time * N_cell,)
     coords = np.stack([x_flat, t_flat], axis=1)  # (N_time*N_cell, 2)
 
-    train_coords = coords[mask]
-    test_coords = coords[~mask]
+# Time-based block splits: 4 interior 8% blocks centered at tau = 0.2, 0.4, 0.6, 0.8
+    val_block_1 = (t_flat >= 0.16) & (t_flat < 0.24)  # Val centered at 0.20
+    test_block_1 = (t_flat >= 0.36) & (t_flat < 0.44) # Test centered at 0.40
+    val_block_2 = (t_flat >= 0.56) & (t_flat < 0.64)  # Val centered at 0.60
+    test_block_2 = (t_flat >= 0.76) & (t_flat < 0.84) # Test centered at 0.80
 
-    return (train_coords, train_flow), (test_coords, test_flow)
+    val_mask = val_block_1 | val_block_2
+    test_mask = test_block_1 | test_block_2
+    train_mask = ~(val_mask | test_mask)
+
+    # split into train, val, and test sets
+    train_flow = R_norm[train_mask]
+    val_flow = R_norm[val_mask]
+    test_flow = R_norm[test_mask]
+
+    train_coords = coords[train_mask]
+    val_coords = coords[val_mask]
+    test_coords = coords[test_mask]
+
+    return (train_coords, train_flow), (val_coords, val_flow), (test_coords, test_flow)
 
 
 def EulerPreprocessor(dataset_type = 'train',
                       config = r'.\neural_fields\hypernet_studies\configs\physics.yaml', 
-                      data_path = './generated_data/'):
+                      data_path = './generated_data/',
+                      time_stride = 10,
+                      baseline = False):
 
 
     with open(config, 'r') as f:
@@ -139,11 +145,7 @@ def EulerPreprocessor(dataset_type = 'train',
     coords_list = []
     IC_list = []
 
-    # for idx in range(int(len(os.listdir(os.path.join(data_path, dataset_type)))/2)):
-    #     Q_hist = np.load(file=os.path.join(data_path, dataset_type, f'{dataset_type}_{idx}.npy'),
-    #                     mmap_mode = 'r') # (N_time, 3, N_cell)
-    #     IC_assoc = np.load(file=os.path.join(data_path, dataset_type, f'{dataset_type}_init_{idx}.npy'),
-    #                        mmap_mode = 'r') # (N_time, 3, N_cell)
+
     folder_path = os.path.join(data_path, dataset_type)
 
     # 1. Match ONLY the primary files (e.g., train_0.npy, train_-1.npy)
@@ -170,14 +172,17 @@ def EulerPreprocessor(dataset_type = 'train',
         Q_hist = np.load(file=main_file, mmap_mode="r")
         IC_assoc = np.load(file=init_file, mmap_mode="r")
 
+        # Temporal Subsampling: slice every `time_stride` snapshots directly on disk/memory
+        Q_hist_sub = Q_hist[::time_stride, :, :]
+        N_time_sub, __, N_cell = Q_hist_sub.shape
 
-        N_time, __, N_cell = Q_hist.shape
+        # N_time, __, N_cell = Q_hist.shape
 
         # create the the data array
         # convert to primative testues
-        rho = Q_hist[:, 0, :]
-        mom = Q_hist[:, 1, :]
-        E = Q_hist[:, 2, :]
+        rho = Q_hist_sub[:, 0, :]
+        mom = Q_hist_sub[:, 1, :]
+        E = Q_hist_sub[:, 2, :]
 
         u = mom/rho
         P = (gamma - 1.0) * (E - 0.5 * rho * u**2)
@@ -189,7 +194,7 @@ def EulerPreprocessor(dataset_type = 'train',
 
         # create the coords array
         x = np.linspace(-1, 1, N_cell)
-        t = np.linspace(0, 1, N_time) 
+        t = np.linspace(0, 1, Q_hist.shape[0])[::time_stride] # ensure time values match original grid points
 
         # Create a mesh grid and flatten
         x_mesh, t_mesh = np.meshgrid(x, t, indexing='ij')  # both shape: (N_cell, N_time)
@@ -206,12 +211,8 @@ def EulerPreprocessor(dataset_type = 'train',
                        ((gamma - 1.0) * (QR[2] - 0.5 * QR[0] * (QR[1]/QR[0])**2))/((gamma - 1.0) * (QL[2] - 0.5 * QL[0] * (QL[1]/QL[0])**2)),
                        x_split_percent])
         # IC_block = np.copy(IC)
-        IC_flat = np.tile(IC, (N_time*N_cell, 1))
+        IC_flat = np.tile(IC, (N_time_sub*N_cell, 1))
         
-        # for point in range(N_time*N_cell-1):
-        #     print(3)
-        #     IC = np.vstack((IC, 
-        #                     IC_block))
 
         R_list.append(R_flat)
         coords_list.append(coords)
@@ -223,14 +224,14 @@ def EulerPreprocessor(dataset_type = 'train',
     IC_dataset = np.vstack(IC_list) # (N_time*N_cell*N_dataset, 3)
 
 
-
-
     # physically standardize the data
     R_norm = phys_normalize(R_dataset)
 
 
-
-    return (coords_dataset, R_norm, IC_dataset)
+    if baseline == True:
+        return (np.hstack((coords_dataset, IC_dataset)), R_norm, IC_dataset)
+    else:
+        return (coords_dataset, R_norm, IC_dataset)
 
 
 

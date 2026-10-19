@@ -73,7 +73,7 @@ def train_model(NF_def, model_type = 'neural_field', config  =r'.\neural_fields\
         )
 
 
-    train, test = SodPreprocessor()
+    train, test, ___ = SodPreprocessor()
 
     train_ds = SodDataset(train[0], train[1])
     test_ds = SodDataset(test[0], test[1])

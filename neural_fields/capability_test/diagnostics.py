@@ -4,7 +4,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 import yaml
 
 from neural_fields.capability_test.models import INR, SIREN, WIRE
@@ -64,7 +64,7 @@ def visualize_model(model,
     exact_solver = ExactRiemannSolver(state_L, state_R, x_interface=0.5, gamma=1.4)
 
 
-    animate_comparison(rho_hist, u_hist, P_hist, x_samp, t_samp, N_samp, exact_solver)
+    return animate_comparison(rho_hist, u_hist, P_hist, x_samp, t_samp, N_samp, exact_solver)
 
 def animate_pred_results(rho_hist, u_hist, p_hist,
                          x, t_hist, N_samp, 
@@ -246,7 +246,9 @@ if __name__ == '__main__':
              N_out = 3)
     NF.load_state_dict(torch.load(r'./models/neural_field_weights.pth', weights_only=True))
 
-    visualize_model(NF, device = device)
+    duhdoy = visualize_model(NF, device = device)
+
+    duhdoy.save("INR.mp4", writer=FFMpegWriter(fps=10), dpi=70)
 
     NF = SIREN(N_in=2, 
              N_hidden_features=64, 
@@ -271,3 +273,4 @@ if __name__ == '__main__':
     NF.load_state_dict(torch.load(r'./models/WIRE_weights.pth', weights_only=True))
 
     visualize_model(NF, device = device)
+

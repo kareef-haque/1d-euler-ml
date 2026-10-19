@@ -1,4 +1,5 @@
 from neural_fields.hypernet_studies.train import train_base, train_hyper, train_EndtoEnd
+from neural_fields.hypernet_studies.train import train_EXP2_baseline, train_EXP3_baseline
 from neural_fields.hypernet_studies.models import INR
 
 import os
@@ -22,78 +23,119 @@ def sample_Exp2():
     os.makedirs(exp2_dir, exist_ok=True)
     save_path = exp2_dir
 
-    # base = train_base()
-    # base_state = base.state_dict() # Cache the state dict to use for later sweeps
-    # flush_memory()
+    base = train_base()
+    base_state = base.state_dict() # Cache the state dict to use for later sweeps
+    flush_memory()
 
 
-    # FiLM1 = train_hyper(neural_field=base,
-    #                     input_features=3,
-    #                     hyper_type='FiLM')
+    FiLM1 = train_hyper(neural_field=base,
+                        input_features=3,
+                        hyper_type='FiLM',
+                        run_name = 'base_FiLM_H1')
 
-    # checkpoint = {
-    #     "base": base.state_dict(),
-    #     "hyper": FiLM1.state_dict()
-    #     }
-    # torch.save(checkpoint, 
-    #             os.path.join(save_path, f'base_FiLM_H1.pth'))
+    checkpoint = {
+        "base": base.state_dict(),
+        "hyper": FiLM1.state_dict()
+        }
+    torch.save(checkpoint, 
+                os.path.join(save_path, f'base_FiLM_H1.pth'))
 
-    # del FiLM1
-    # flush_memory()
+    del FiLM1
+    flush_memory()
 
 
 
+    #r = 4, alpha = 4
+    LoRA1 = train_hyper(neural_field=base,
+                        input_features=3,
+                        hyper_type='LoRA',
+                        run_name = 'base_LoRA_H1_r4a4')
+    checkpoint = {
+                "base": base.state_dict(),
+                "hyper": LoRA1.state_dict()
+                }
+    torch.save(checkpoint, 
+                os.path.join(save_path, f'base_LoRA_H1_r4a4.pth'))
+
+
+    del LoRA1
+    flush_memory()
     
-    # FiLM2 = train_hyper(neural_field=base,
+
+    # We can now completely delete the original base model since we have its state_dict
+    del base 
+    flush_memory()
+
+
+    # #r = 1, alpha = 1
+    # base_Lora2 = copy_BaseNet_for_LoRA_Sweep(source = base_state,
+    #                                             rank = 1, alpha = 1.0)
+    # LoRA2 = train_hyper(neural_field=base_Lora2,
     #                     input_features=3,
-    #                     hyper_type='FiLM')
+    #                     hyper_type='LoRA',
+    #                     run_name = 'base_LoRA_H2_r1a1')
     # checkpoint = {
-    #     "base": base.state_dict(),
-    #     "hyper": FiLM2.state_dict()
-    #     }
-    # torch.save(checkpoint, 
-    #             os.path.join(save_path, f'base_FiLM_H2.pth'))
-
-    # del FiLM2
-    # flush_memory()
-
-
-
-    # #r = 4, alpha = 4
-    # LoRA1 = train_hyper(neural_field=base,
-    #                     input_features=3,
-    #                     hyper_type='LoRA')
-    # checkpoint = {
-    #             "base": base.state_dict(),
-    #             "hyper": LoRA1.state_dict()
+    #             "base": base_state,
+    #             "hyper": LoRA2.state_dict()
     #             }
     # torch.save(checkpoint, 
-    #             os.path.join(save_path, f'base_LoRA_H1_r4a4.pth'))
-
-
-    # del LoRA1
+    #             os.path.join(save_path, f'base_LoRA_H2_r1a1.pth'))
+    # del LoRA2, base_Lora2
     # flush_memory()
     
-    # #r = 4, alpha = 4
-    # LoRA0 = train_hyper(neural_field=base,
+    # #r = 4, alpha = 16
+    # base_Lora3 = copy_BaseNet_for_LoRA_Sweep(source = base_state,
+    #                                             rank = 4, alpha = 16.0)
+    # LoRA3 = train_hyper(neural_field=base_Lora3,
     #                     input_features=3,
-    #                     hyper_type='LoRA')
+    #                     hyper_type='LoRA',
+    #                     run_name = 'base_LoRA_H3_r4a16')
     # checkpoint = {
-    #             "base": base.state_dict(),
-    #             "hyper": LoRA0.state_dict()
+    #             "base": base_state,
+    #             "hyper": LoRA3.state_dict()
     #             }
     # torch.save(checkpoint, 
-    #             os.path.join(save_path, f'base_LoRA_H0_r4a4.pth'))
-
-    # del LoRA0
+    #             os.path.join(save_path, f'base_LoRA_H3_r4a16.pth'))
+    # del LoRA3, base_Lora3
     # flush_memory()
 
-    # # We can now completely delete the original base model since we have its state_dict
-    # del base 
-    # flush_memory()
+    # ch = torch.load(r'./models\exp2\base_FiLM_H1.pth')
+    # base_state = ch['base']
 
-    chombo = torch.load(r'models\exp2\base_LoRA_H0_r4a4.pth')
-    base_state = chombo['base']
+
+    # #NOTE OPTIONAL
+    base_film = copy_BaseNet_for_LoRA_Sweep(source = base_state,
+                                            rank = 4, alpha = 4.0)
+    FiLM0 = train_hyper(neural_field=base_film,
+                        input_features=3,
+                        hyper_type='FiLM',
+                        run_name = 'base_FiLM_H0')
+    checkpoint = {
+        "base": base_state,
+        "hyper": FiLM0.state_dict()
+        }
+    torch.save(checkpoint, 
+                os.path.join(save_path, f'base_FiLM_H0.pth'))
+
+    del FiLM0, base_film
+    flush_memory()
+
+    # #r = 4, alpha = 4
+    base_Lora0 = copy_BaseNet_for_LoRA_Sweep(source = base_state,
+                                            rank = 4, alpha = 4.0)
+    LoRA0 = train_hyper(neural_field=base_Lora0,
+                        input_features=3,
+                        hyper_type='LoRA',
+                        run_name = 'base_LoRA_H0_r4a4')
+    checkpoint = {
+                "base": base_state,
+                "hyper": LoRA0.state_dict()
+                }
+    torch.save(checkpoint, 
+                os.path.join(save_path, f'base_LoRA_H0_r4a4.pth'))
+
+    del LoRA0, base_Lora0
+    flush_memory()
 
 
     #r = 1, alpha = 1
@@ -101,7 +143,8 @@ def sample_Exp2():
                                                 rank = 1, alpha = 1.0)
     LoRA2 = train_hyper(neural_field=base_Lora2,
                         input_features=3,
-                        hyper_type='LoRA')
+                        hyper_type='LoRA',
+                        run_name = 'base_LoRA_H2_r1a1')
     checkpoint = {
                 "base": base_state,
                 "hyper": LoRA2.state_dict()
@@ -110,21 +153,59 @@ def sample_Exp2():
                 os.path.join(save_path, f'base_LoRA_H2_r1a1.pth'))
     del LoRA2, base_Lora2
     flush_memory()
-    
-    #r = 4, alpha = 16
+
+
+
+    #r = 1, alpha = 1
     base_Lora3 = copy_BaseNet_for_LoRA_Sweep(source = base_state,
-                                                rank = 4, alpha = 16.0)
+                                                rank = 1, alpha = 1.0)
     LoRA3 = train_hyper(neural_field=base_Lora3,
                         input_features=3,
-                        hyper_type='LoRA')
+                        hyper_type='LoRA',
+                        run_name = 'base_LoRA_H3_r1a1')
     checkpoint = {
                 "base": base_state,
                 "hyper": LoRA3.state_dict()
                 }
     torch.save(checkpoint, 
-                os.path.join(save_path, f'base_LoRA_H3_r4a16.pth'))
+                os.path.join(save_path, f'base_LoRA_H3_r1a1.pth'))
     del LoRA3, base_Lora3
     flush_memory()
+
+
+    # base_film = copy_BaseNet_for_LoRA_Sweep(source = base_state,
+    #                                         rank = 4, alpha = 4.0)
+    # FiLM2 = train_hyper(neural_field=base_film,
+    #                     input_features=3,
+    #                     hyper_type='FiLM',
+    #                     run_name = 'base_FiLM_H2')
+    # checkpoint = {
+    #     "base": base_state,
+    #     "hyper": FiLM2.state_dict()
+    #     }
+    # torch.save(checkpoint, 
+    #             os.path.join(save_path, f'base_FiLM_H2.pth'))
+
+    # del FiLM2, base_film
+    # flush_memory()
+
+    # # #r = 4, alpha = 4
+    # base_Lora2 = copy_BaseNet_for_LoRA_Sweep(source = base_state,
+    #                                         rank = 4, alpha = 4.0)
+    # LoRA2 = train_hyper(neural_field=base_Lora2,
+    #                     input_features=3,
+    #                     hyper_type='LoRA',
+    #                     run_name = 'base_LoRA_H2_r4a4')
+    # checkpoint = {
+    #             "base": base_state,
+    #             "hyper": LoRA2.state_dict()
+    #             }
+    # torch.save(checkpoint, 
+    #             os.path.join(save_path, f'base_LoRA_H2_r4a4.pth'))
+
+    # del LoRA2, base_Lora2
+    # flush_memory()
+
 
 
 
@@ -144,7 +225,8 @@ def sample_Exp3():
     save_path = exp3_dir
 
     base, FiLM1 = train_EndtoEnd(input_features=1,
-                                 hyper_type = 'FiLM',)
+                                 hyper_type = 'FiLM',
+                                 run_name = 'base_FiLM_H1')
 
     checkpoint = {
         "base": base.state_dict(),
@@ -157,17 +239,18 @@ def sample_Exp3():
     flush_memory()
 
     
-    base, FiLM2 = train_EndtoEnd(input_features=1,
-                                hyper_type = 'FiLM',)
+    base, FiLM0 = train_EndtoEnd(input_features=1,
+                                hyper_type = 'FiLM',
+                                run_name = 'base_FiLM_H0')
 
     checkpoint = {
         "base": base.state_dict(),
-        "hyper": FiLM2.state_dict()
+        "hyper": FiLM0.state_dict()
         }
     torch.save(checkpoint, 
-                os.path.join(save_path, f'base_FiLM_H2.pth'))
+                os.path.join(save_path, f'base_FiLM_H0.pth'))
 
-    del base, FiLM2
+    del base, FiLM0
     flush_memory()
 
 
@@ -175,7 +258,8 @@ def sample_Exp3():
     base, LoRA1 = train_EndtoEnd(input_features=1,
                                  hyper_type = 'LoRA',
                                  lora_rank=4,
-                                 lora_alpha=4.0)
+                                 lora_alpha=4.0,
+                                 run_name = 'base_LoRA_H1_r4a4')
 
     checkpoint = {
         "base": base.state_dict(),
@@ -191,7 +275,8 @@ def sample_Exp3():
     base, LoRA0 = train_EndtoEnd(input_features=1,
                                  hyper_type = 'LoRA',
                                  lora_rank=4,
-                                 lora_alpha=4.0)
+                                 lora_alpha=4.0,
+                                 run_name = 'base_LoRA_H0_r4a4')
 
     checkpoint = {
         "base": base.state_dict(),
@@ -206,7 +291,8 @@ def sample_Exp3():
     base, LoRA2 = train_EndtoEnd(input_features=1,
                                  hyper_type = 'LoRA',
                                  lora_rank=1,
-                                 lora_alpha=1.0)
+                                 lora_alpha=1.0,
+                                 run_name = 'base_LoRA_H2_r1a1')
 
     checkpoint = {
         "base": base.state_dict(),
@@ -217,21 +303,117 @@ def sample_Exp3():
 
     del base, LoRA2
     flush_memory()
-    
-    #r = 4, alpha = 16
+
+
+
+
+    #r = 1, alpha = 1
     base, LoRA3 = train_EndtoEnd(input_features=1,
                                  hyper_type = 'LoRA',
-                                 lora_rank=4,
-                                 lora_alpha=4.0)
-
+                                 lora_rank=1,
+                                 lora_alpha=1.0,
+                                 run_name = 'base_LoRA_H3_r1a1')
     checkpoint = {
-        "base": base.state_dict(),
-        "hyper": LoRA3.state_dict()
-        }
+                "base": base.state_dict(),
+                "hyper": LoRA3.state_dict()
+                }
     torch.save(checkpoint, 
-                os.path.join(save_path, f'base_LoRA_H3_r4a15.pth'))
+                os.path.join(save_path, f'base_LoRA_H3_r1a1.pth'))
+    del LoRA3, base
+    flush_memory()
 
-    del base, LoRA3
+    
+    # #r = 4, alpha = 16
+    # base, LoRA3 = train_EndtoEnd(input_features=1,
+    #                              hyper_type = 'LoRA',
+    #                              lora_rank=4,
+    #                              lora_alpha=16.0,
+    #                              run_name = 'base_LoRA_H3_r4a16')
+
+    # checkpoint = {
+    #     "base": base.state_dict(),
+    #     "hyper": LoRA3.state_dict()
+    #     }
+    # torch.save(checkpoint, 
+    #             os.path.join(save_path, f'base_LoRA_H3_r4a16.pth'))
+
+    # del base, LoRA3
+    # flush_memory()
+
+    # base, FiLM2 = train_EndtoEnd(input_features=1,
+    #                             hyper_type = 'FiLM',
+    #                             run_name = 'base_FiLM_H2')
+
+    # checkpoint = {
+    #     "base": base.state_dict(),
+    #     "hyper": FiLM2.state_dict()
+    #     }
+    # torch.save(checkpoint, 
+    #             os.path.join(save_path, f'base_FiLM_H2.pth'))
+
+    # del base, FiLM2
+    # flush_memory()
+
+
+    # #r = 4, alpha = 4
+    # base, LoRA2 = train_EndtoEnd(input_features=1,
+    #                              hyper_type = 'LoRA',
+    #                              lora_rank=4,
+    #                              lora_alpha=4.0,
+    #                              run_name = 'base_LoRA_H2_r4a4')
+
+    # checkpoint = {
+    #     "base": base.state_dict(),
+    #     "hyper": LoRA2.state_dict()
+    #     }
+    # torch.save(checkpoint, 
+    #             os.path.join(save_path, f'base_LoRA_H2_r4a4.pth'))
+
+    # del base, LoRA2
+    # flush_memory()
+    
+
+
+def sample_Exp2_Baseline():
+    '''
+    Experiment to test hypernetwork ability to modulate through function space
+        - Vary initial Conditions
+    '''
+    torch.set_float32_matmul_precision('high')
+    
+    save_path = r'./models'
+    os.makedirs(save_path, exist_ok=True)
+
+    exp2_dir= os.path.join(save_path, 'baseline')
+    os.makedirs(exp2_dir, exist_ok=True)
+    save_path = exp2_dir
+
+    base = train_EXP2_baseline(run_name = 'exp2_baseline')
+
+    torch.save(base.state_dict(), 
+                os.path.join(save_path, f'exp2_baseline.pth'))
+    del base
+    flush_memory()
+
+def sample_Exp3_Baseline():
+    '''
+    Experiment to test hypernetwork ability to modulate through function space
+        - Vary initial Conditions
+    '''
+    torch.set_float32_matmul_precision('high')
+    
+    save_path = r'./models'
+    os.makedirs(save_path, exist_ok=True)
+
+    exp3_dir= os.path.join(save_path, 'baseline')
+    os.makedirs(exp3_dir, exist_ok=True)
+    save_path = exp3_dir
+
+    base = train_EXP3_baseline(run_name = 'exp3_baseline')
+
+    torch.save(base.state_dict(), 
+                os.path.join(save_path, f'exp3_baseline.pth'))
+    del base
     flush_memory()
 
 

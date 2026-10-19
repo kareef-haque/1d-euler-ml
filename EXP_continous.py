@@ -2,13 +2,14 @@ from neural_fields.capability_test.diagnostics import visualize_model
 from neural_fields.capability_test.models import INR, SIREN, WIRE
 from neural_fields.preprocess import SodPreprocessor
 import torch
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 
 
 
 
 if __name__ == '__main__':
 
-    train, test = SodPreprocessor()
+    train, test, __ = SodPreprocessor()
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
     NF = INR(N_in=2, 
              N_hidden_features=64, 
@@ -16,7 +17,9 @@ if __name__ == '__main__':
              N_out = 3)
     NF.load_state_dict(torch.load(r'./models/neural_field_weights.pth', weights_only=True))
 
-    visualize_model(NF, device = device)
+    duhdoy = visualize_model(NF, device = device)
+
+    duhdoy.save("INR.mp4", writer=FFMpegWriter(fps=30), dpi=70)
 
     NF = SIREN(N_in=2, 
              N_hidden_features=64, 
