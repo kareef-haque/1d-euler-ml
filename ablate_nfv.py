@@ -20,6 +20,8 @@ VARIANTS = {
     'c001': {'cons_coef': 0.01},
     'c01': {'cons_coef': 0.1},
     'c1': {'cons_coef': 1.0},
+    'c3': {'cons_coef': 3.0},
+    'c10': {'cons_coef': 10.0},
 }
 SCHEDULE = '10000:1e-4:10:10,20000:1e-5:50:50,20000:5e-6:100:100'
 
