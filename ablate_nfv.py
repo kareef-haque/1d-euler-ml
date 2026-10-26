@@ -20,6 +20,10 @@ VARIANTS = {
     'c001': {'cons_coef': 0.01},
     'c01': {'cons_coef': 0.1},
     'c1': {'cons_coef': 1.0},
+    'ws': {'arch': 'ws'},
+    'ws_rus': {'arch': 'ws', 'riemann': 'rusanov'},
+    'ws_b3': {'arch': 'ws', 'b': 3},
+    'ws_fe': {'arch': 'ws', 'integrator': 'euler'},
 }
 SCHEDULE = '10000:1e-4:10:10,20000:1e-5:50:50,20000:5e-6:100:100'
 

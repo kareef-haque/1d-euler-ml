@@ -9,7 +9,7 @@ import torch
 from infrastructure.nfv_dataset import make_set, save_set, load_set, fname
 from euler1d.neural import scaling, stepper, consistency
 from euler1d.neural import evaluate as ev
-from euler1d.neural.model import NFVModel
+from euler1d.neural.model import build
 from euler1d.neural.diagnostics import consistency_error
 
 SCHEDULE = '10000:1e-4:10:10,20000:1e-5:50:50,20000:5e-6:100:100,20000:1e-6:200:200'
@@ -29,6 +29,9 @@ def parse_schedule(s):
 
 def parse(argv=None):
     p = argparse.ArgumentParser()
+    p.add_argument('--arch', default='nfv', choices=['nfv', 'ws'], help='ws = weighted stencil + Riemann solver (a fixed at 6)')
+    p.add_argument('--riemann', default='hllc', choices=['hllc', 'rusanov'], help='ws only')
+    p.add_argument('--integrator', default='rk3', choices=['rk3', 'euler'], help='ws only (nfv always uses euler)')
     p.add_argument('--a', type=int, default=2)
     p.add_argument('--b', type=int, default=1)
     p.add_argument('--act', default='ELU', choices=['ELU', 'ReLU', 'Tanh'])
@@ -56,7 +59,10 @@ def parse(argv=None):
     p.add_argument('--data_dir', default='generated_nfv')
     p.add_argument('--out', default=None)
     p.add_argument('--device', default='auto')
-    return p.parse_args(argv)
+    a = p.parse_args(argv)
+    if a.arch == 'ws':
+        a.a = 6
+    return a
 
 
 def get_set(args, split, n, nx, nt, dt_mode='per_sample'):
@@ -78,7 +84,7 @@ def get_set(args, split, n, nx, nt, dt_mode='per_sample'):
 
 def attempt(args, dev, out, k, ed, Pbase):
     torch.manual_seed(args.seed + k)
-    model = NFVModel(args.a, args.b, args.hidden, args.depth, args.act).to(dev)
+    model = build(args.arch, args.a, args.b, args.hidden, args.depth, args.act, args.riemann, args.integrator).to(dev)
     qs = torch.as_tensor(scaling.QS, dtype=torch.float32, device=dev).view(1, 1, 3, 1)
     sched = parse_schedule(args.schedule)
     step, best, t0 = 0, float('inf'), time.time()
@@ -143,7 +149,7 @@ def main(argv=None):
         raise ValueError(f'every stage needs nt > b (b = {args.b})')
     dev = torch.device('cuda' if args.device == 'auto' and torch.cuda.is_available()
                        else ('cpu' if args.device == 'auto' else args.device))
-    out = args.out or os.path.join('runs', time.strftime('%Y%m%d_%H%M%S') + f'_a{args.a}b{args.b}_{args.act}')
+    out = args.out or os.path.join('runs', time.strftime('%Y%m%d_%H%M%S') + f'_{args.arch}_a{args.a}b{args.b}_{args.act}')
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, 'config.json'), 'w') as f:
         json.dump(dict(vars(args), rho_ref=scaling.RHO_REF, a_ref=scaling.A_REF), f, indent=2)

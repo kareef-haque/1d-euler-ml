@@ -56,12 +56,23 @@ class NFVModel(nn.Module):
 
     @classmethod
     def load(cls, path, dtype=torch.float32):
+        '''loads any checkpoint kind (NFV or weighted stencil)'''
         ck = torch.load(path, map_location='cpu', weights_only=True)
         m = ck['meta']
         if m['rho_ref'] != scaling.RHO_REF or m['a_ref'] != scaling.A_REF:
             raise ValueError('checkpoint was trained with different scaling constants')
+        if m.get('kind', 'nfv') == 'ws':
+            from euler1d.neural.weighted import WSModel
+            return WSModel.from_ckpt(ck, dtype)
         model = cls(m['a'], m['b'], m['hidden'], m['depth'], m['act'], dtype)
         model.load_state_dict({k: v.to(dtype) for k, v in ck['state'].items()})
         model.extra = {k: v for k, v in m.items() if k not in
                        ('a', 'b', 'hidden', 'depth', 'act', 'rho_ref', 'a_ref')}
         return model
+
+
+def build(arch='nfv', a=2, b=1, hidden=15, depth=6, act='ELU', riemann='hllc', integrator='rk3', dtype=torch.float32):
+    if arch == 'ws':
+        from euler1d.neural.weighted import WSModel
+        return WSModel(b, hidden, depth, act, riemann, dtype=dtype, integrator=integrator)
+    return NFVModel(a, b, hidden, depth, act, dtype)
