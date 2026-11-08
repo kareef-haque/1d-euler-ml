@@ -24,8 +24,35 @@ VARIANTS = {
     'ws_rus': {'arch': 'ws', 'riemann': 'rusanov'},
     'ws_b3': {'arch': 'ws', 'b': 3},
     'ws_fe': {'arch': 'ws', 'integrator': 'euler'},
+    'cfl1': {'cfl': 1.0, 'a': 4},
+    'cfl2': {'cfl': 2.0, 'a': 6},
+    'cfl4': {'cfl': 4.0, 'a': 10},
+    'cfl2_a10': {'cfl': 2.0, 'a': 10},
+    'nfv_c2': {'cfl': 2.0, 'a': 18, 'dt_mode': 'global'},
+    'free_c2': {'cfl': 2.0, 'arch': 'pair', 'dt_mode': 'global'},
+    'trans_c2': {'cfl': 2.0, 'arch': 'pair', 'pair_mode': 'transport', 'dt_mode': 'global'},
+    'nfv_c4': {'cfl': 4.0, 'a': 30, 'dt_mode': 'global'},
+    'free_c4': {'cfl': 4.0, 'arch': 'pair', 'dt_mode': 'global'},
+    'trans_c4': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'transport', 'dt_mode': 'global'},
 }
 SCHEDULE = '10000:1e-4:10:10,20000:1e-5:50:50,20000:5e-6:100:100'
+
+
+def scale_cfl(kw, match='nt'):
+    '''same physical time as at CFL 0.5: match='nt' divides nt by 2C, match='nx' multiplies nx by 2C'''
+    C = kw.get('cfl', 0.5)
+    if C == 0.5:
+        return kw
+    f, b = C / 0.5, kw.get('b', 1)
+    st = train_nfv.parse_schedule(kw['schedule'])
+    if match == 'nt':
+        st = [(s, lr, nx, max(b + 1, round(nt / f))) for s, lr, nx, nt in st]
+        kw['eval_nt'] = max(b + 1, round(kw['eval_nt'] / f))
+    else:
+        st = [(s, lr, round(nx * f), nt) for s, lr, nx, nt in st]
+        kw['eval_nx'] = round(kw['eval_nx'] * f)
+    kw['schedule'] = ','.join(f'{s}:{lr:g}:{nx}:{nt}' for s, lr, nx, nt in st)
+    return kw
 
 
 def last_log(path):
@@ -44,6 +71,7 @@ def train_eval(variant, seed, a):
               eval_nx=a.eval_nx, eval_nt=a.eval_nt, eval_every=a.eval_every, seed=seed,
               data_dir=a.data_dir, out=out, device=a.device, max_restarts=0)
     kw.update(VARIANTS[variant])
+    kw = scale_cfl(kw, a.cfl_match)
     argv = [f'--{k}={v}' for k, v in kw.items()]
     t0 = time.time()
     r = dict(variant=variant, seed=seed, failed=False)
@@ -56,13 +84,14 @@ def train_eval(variant, seed, a):
     r['steps_done'] = r['last'].get('step', 0)
     if not r['failed']:
         args = train_nfv.parse(argv)
-        d = train_nfv.get_set(args, 'test', a.n_eval, a.eval_nx, a.eval_nt)
+        d = train_nfv.get_set(args, 'test', a.n_eval, args.eval_nx, args.eval_nt, args.dt_mode)
         d = {k: (v[:a.n_eval] if k in ('Q', 'dt', 'smax', 'pl', 'pr', 'xf') else v) for k, v in d.items()}
         model = NFVModel.load(os.path.join(out, 'model_final.pt'))
         H = int(r['last']['nt'])
         r['params'] = model.num_params()
         r['test'] = ev.evaluate(model, ev.prep(d), ev.base_pred(d), H)
         r['H'] = H
+        r['cfl'], r['base_sub'] = args.cfl, ev.n_sub(args.cfl)
         c = dg.consistency_error(model, states=dg.states_from_set(d))
         r['cons'] = {k: v.tolist() for k, v in c.items()}
         m = NFVModel.load(os.path.join(out, 'model_final.pt'))
@@ -83,6 +112,8 @@ def summarize(runs):
         t = [r['test'] for r in ok]
         out[v] = dict(
             n=len(R), n_ok=len(ok), params=ok[0]['params'] if ok else None,
+            cfl=ok[0].get('cfl', 0.5) if ok else None, base_sub=ok[0].get('base_sub', 1) if ok else None,
+            H=ok[0].get('H') if ok else None,
             ratio_h=[x['ratioh'] for x in t], win_h=[x['winh'] for x in t],
             ratio_full=[x['ratio'] for x in t], n_div_full=[x['n_div'] for x in t],
             cons_shift=[float(np.mean(np.array(r['cons']['err_shift']) / np.array(r['cons']['ref_std']))) for r in ok],
@@ -109,6 +140,12 @@ def show(S, H):
         print(f"{v:8s} {s['n_ok']}/{s['n']:<3d} {str(s['params']):>7s} {rng:>24s} {100 * med(s['win_h']):5.0f}% "
               f"{med(s['ratio_full']):11.2f} {med(s['n_div_full']):9.0f} {med(s['cons_shift']):16.2f} "
               f"{med(s['cons_raw']):6.2f} {med(s['sec']) / 3600:6.1f}  {s['failed_at'] or ''}")
+    if any(s['cfl'] not in (None, 0.5) for s in S.values()):
+        print(f"\nCFL. Baseline = HLLC-1 with base_sub substeps per model step (same physical time); "
+              f"flux evals per step: model 1, baseline base_sub\n")
+        print(f"{'variant':8s} {'cfl':>5s} {'base_sub':>9s} {'h steps':>8s}")
+        for v, s in S.items():
+            print(f"{v:8s} {str(s['cfl']):>5s} {str(s['base_sub']):>9s} {str(s['H']):>8s}")
     print(f"\nSod diagnosis. RH residual / FS (0 = consistent), mean |plateau error| vs exact\n")
     print(f"{'variant':8s} {'shock momentum':>18s} {'contact energy':>18s} {'plateau err':>14s}")
     for v, s in S.items():
@@ -129,6 +166,7 @@ def main(argv=None):
     p.add_argument('--eval_nt', type=int, default=400)
     p.add_argument('--eval_every', type=int, default=5000)
     p.add_argument('--device', default='auto')
+    p.add_argument('--cfl_match', default='nt', choices=['nt', 'nx'], help='how cfl variants keep the physical time')
     a = p.parse_args(argv)
     runs = [train_eval(v, int(s), a) for v in a.variants.split(',') for s in a.seeds.split(',')]
     S = summarize(runs)

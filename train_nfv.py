@@ -1,4 +1,5 @@
 import argparse
+import math
 import copy
 import json
 import os
@@ -29,7 +30,10 @@ def parse_schedule(s):
 
 def parse(argv=None):
     p = argparse.ArgumentParser()
-    p.add_argument('--arch', default='nfv', choices=['nfv', 'ws'], help='ws = weighted stencil + Riemann solver (a fixed at 6)')
+    p.add_argument('--arch', default='nfv', choices=['nfv', 'ws', 'pair'],
+                   help='ws = weighted stencil + Riemann solver (a fixed at 6); pair = pairwise exchange (a = 6k)')
+    p.add_argument('--k', type=int, default=0, help='pair: max hop in cells (0 = ceil(cfl) + 1)')
+    p.add_argument('--pair_mode', default='free', choices=['free', 'transport'], help='pair only')
     p.add_argument('--riemann', default='hllc', choices=['hllc', 'rusanov'], help='ws only')
     p.add_argument('--integrator', default='rk3', choices=['rk3', 'euler'], help='ws only (nfv always uses euler)')
     p.add_argument('--a', type=int, default=2)
@@ -48,7 +52,7 @@ def parse(argv=None):
     p.add_argument('--grad_clip', type=float, default=1.0)
     p.add_argument('--dx', type=float, default=1e-3)
     p.add_argument('--cfl', type=float, default=0.5)
-    p.add_argument('--dt_mode', default='per_sample', choices=['per_sample', 'global'], help='training data only')
+    p.add_argument('--dt_mode', default='per_sample', choices=['per_sample', 'global'], help='train, eval and test data')
     p.add_argument('--n_eval', type=int, default=100)
     p.add_argument('--eval_nx', type=int, default=200)
     p.add_argument('--eval_nt', type=int, default=400)
@@ -62,12 +66,17 @@ def parse(argv=None):
     a = p.parse_args(argv)
     if a.arch == 'ws':
         a.a = 6
+    if a.arch == 'pair':
+        a.k = a.k or math.ceil(a.cfl) + 1
+        a.a = 6 * a.k
+        if a.pair_mode == 'transport' and a.dt_mode != 'global':
+            raise ValueError('pair_mode transport needs --dt_mode global')
     return a
 
 
 def get_set(args, split, n, nx, nt, dt_mode='per_sample'):
     G = max(3, args.a // 2)
-    path = os.path.join(args.data_dir, fname(split, nx, nt, dt_mode))
+    path = os.path.join(args.data_dir, fname(split, nx, nt, dt_mode, args.cfl))
     if os.path.exists(path):
         d = load_set(path)
         if (d['Q'].shape[0] < n or d['G'] < args.a // 2 or abs(d['dx'] - args.dx) > 1e-15
@@ -84,14 +93,16 @@ def get_set(args, split, n, nx, nt, dt_mode='per_sample'):
 
 def attempt(args, dev, out, k, ed, Pbase):
     torch.manual_seed(args.seed + k)
-    model = build(args.arch, args.a, args.b, args.hidden, args.depth, args.act, args.riemann, args.integrator).to(dev)
+    model = build(args.arch, args.a, args.b, args.hidden, args.depth, args.act, args.riemann, args.integrator,
+                  k=args.k, mode=args.pair_mode, cfl=args.cfl).to(dev)
     qs = torch.as_tensor(scaling.QS, dtype=torch.float32, device=dev).view(1, 1, 3, 1)
     sched = parse_schedule(args.schedule)
     step, best, t0 = 0, float('inf'), time.time()
     logf = open(os.path.join(out, 'log.jsonl'), 'a')
 
     def save(name, **kw):
-        model.cpu().save(os.path.join(out, name), gamma=1.4, cfl=args.cfl, dx=args.dx, step=step, **kw)
+        model.cpu().save(os.path.join(out, name), gamma=1.4, cfl=args.cfl, dx=args.dx, dt_mode=args.dt_mode,
+                         step=step, **kw)
         model.to(dev)
 
     for si, (steps, lr, nx, nt) in enumerate(sched):
@@ -155,7 +166,7 @@ def main(argv=None):
         json.dump(dict(vars(args), rho_ref=scaling.RHO_REF, a_ref=scaling.A_REF), f, indent=2)
     print(f'device {dev}, output {out}')
 
-    d = get_set(args, 'eval', args.n_eval, args.eval_nx, args.eval_nt)
+    d = get_set(args, 'eval', args.n_eval, args.eval_nx, args.eval_nt, args.dt_mode)
     d = {k: (v[:args.n_eval] if k in ('Q', 'dt', 'smax', 'pl', 'pr', 'xf') else v) for k, v in d.items()}
     ed, Pbase = ev.prep(d, dev), ev.base_pred(d, dev)
 

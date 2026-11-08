@@ -18,8 +18,14 @@ def prep(d, device='cpu', dtype=torch.float64):
     return dict(Q=t(d['Q']), dt=t(d['dt']), dx=float(d['dx']), G=int(d['G']))
 
 
+def n_sub(cfl):
+    '''substeps that keep the first-order baseline at CFL <= 0.5'''
+    return max(1, int(np.ceil(float(cfl) / 0.5 - 1e-9)))
+
+
 def base_pred(d, device='cpu'):
-    P = first_order(np.asarray(d['Q'], dtype=float), int(d['G']), d['dt'], float(d['dx']), float(d['gamma']))
+    P = first_order(np.asarray(d['Q'], dtype=float), int(d['G']), d['dt'], float(d['dx']), float(d['gamma']),
+                    n_sub(d.get('cfl', 0.5)))
     return torch.as_tensor(P, dtype=torch.float64, device=device)
 
 

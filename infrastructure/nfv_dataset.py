@@ -56,8 +56,9 @@ def make_set(n, nx, nt, dx, split='train', seed=0, cfl=0.5, G=3, sub=10, gamma=1
     return dict(d, split=split, seed=seed, dt_mode=dt_mode)
 
 
-def fname(split, nx, nt, dt_mode='per_sample'):
-    return f'{split}_nx{nx}_nt{nt}' + ('_gdt' if dt_mode == 'global' else '') + '.npz'
+def fname(split, nx, nt, dt_mode='per_sample', cfl=0.5):
+    return (f'{split}_nx{nx}_nt{nt}' + ('_gdt' if dt_mode == 'global' else '')
+            + ('' if cfl == 0.5 else f'_cfl{cfl:g}') + '.npz')
 
 
 def split_ghost(d):
@@ -85,6 +86,7 @@ def main():
     ap.add_argument('--dx', type=float, default=1e-3)
     ap.add_argument('--cfl', type=float, default=0.5)
     ap.add_argument('--seed', type=int, default=0)
+    ap.add_argument('--G', type=int, default=3, help='ghost cells; must be >= a // 2 of the model')
     ap.add_argument('--dt_mode', default='per_sample', choices=['per_sample', 'global'])
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -93,8 +95,8 @@ def main():
     jobs += [('eval', a.n_eval, a.eval_nx, a.eval_nt), ('test', a.n_test, a.eval_nx, a.eval_nt)]
     for split, n, nx, nt in jobs:
         t0 = time.time()
-        d = make_set(n, nx, nt, a.dx, split, a.seed, a.cfl, dt_mode=a.dt_mode)
-        path = os.path.join(a.out, fname(split, nx, nt, a.dt_mode))
+        d = make_set(n, nx, nt, a.dx, split, a.seed, a.cfl, G=a.G, dt_mode=a.dt_mode)
+        path = os.path.join(a.out, fname(split, nx, nt, a.dt_mode, a.cfl))
         save_set(path, d)
         print(f'{path}  n={n}  {d["Q"].nbytes / 1e6:.0f} MB  {time.time() - t0:.1f}s')
 

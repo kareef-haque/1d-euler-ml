@@ -8,7 +8,7 @@ import argparse
 import numpy as np
 import torch
 
-from infrastructure.nfv_dataset import from_states
+from infrastructure.nfv_dataset import from_states, S_GLOBAL
 from infrastructure.exact import ExactRiemannSolver
 from euler1d.neural.model import NFVModel
 from euler1d.neural import rollouts as ro, stepper, scaling
@@ -34,8 +34,13 @@ def measure(Pf, ex, t, dx):
     return out
 
 
-def plateaus(model, nx=400, nt=100, dx=1e-3):
-    d = from_states(SOD[0], SOD[1], 0.5, nx, nt, dx, 0.5, G=max(3, model.g), dtype=np.float64)
+def plateaus(model, nx=400, nt=None, dx=1e-3):
+    '''CFL and dt_mode from the checkpoint; nt defaults to the same physical time as 100 steps at CFL 0.5'''
+    cfl = model.extra.get('cfl', 0.5)
+    sm = ExactRiemannSolver(SOD[0], SOD[1], 0.5 * nx * dx, 1.4).smax()
+    dt = cfl * dx / (S_GLOBAL if model.extra.get('dt_mode') == 'global' else sm)
+    nt = nt or max(1, round(50 * dx / sm / dt))
+    d = from_states(SOD[0], SOD[1], 0.5, nx, nt, dx, cfl, G=max(3, model.g), dtype=np.float64, dt=dt)
     P = ro.predict_all(d, ['NFV'], model)['NFV'][0, -1]
     ex = ExactRiemannSolver(SOD[0], SOD[1], 0.5 * nx * dx, 1.4)
     return measure(P, ex, nt * d['dt'][0], dx)
