@@ -34,6 +34,10 @@ VARIANTS = {
     'nfv_c4': {'cfl': 4.0, 'a': 30, 'dt_mode': 'global'},
     'free_c4': {'cfl': 4.0, 'arch': 'pair', 'dt_mode': 'global'},
     'trans_c4': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'transport', 'dt_mode': 'global'},
+    'attn_c4': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'attn', 'dt_mode': 'global'},
+    'attnp_c4': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'attn', 'attn_prior': 1, 'dt_mode': 'global'},
+    'attn_c4_e8': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'attn', 'emb': 8, 'dk': 4, 'dt_mode': 'global'},
+    'attn_c4_e32': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'attn', 'emb': 32, 'dk': 16, 'dt_mode': 'global'},
 }
 SCHEDULE = '10000:1e-4:10:10,20000:1e-5:50:50,20000:5e-6:100:100'
 

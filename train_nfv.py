@@ -33,7 +33,10 @@ def parse(argv=None):
     p.add_argument('--arch', default='nfv', choices=['nfv', 'ws', 'pair'],
                    help='ws = weighted stencil + Riemann solver (a fixed at 6); pair = pairwise exchange (a = 6k)')
     p.add_argument('--k', type=int, default=0, help='pair: max hop in cells (0 = ceil(cfl) + 1)')
-    p.add_argument('--pair_mode', default='free', choices=['free', 'transport'], help='pair only')
+    p.add_argument('--pair_mode', default='free', choices=['free', 'transport', 'attn'], help='pair only')
+    p.add_argument('--emb', type=int, default=16, help='attn: embedding size per cell')
+    p.add_argument('--dk', type=int, default=8, help='attn: query/key size')
+    p.add_argument('--attn_prior', type=int, default=0, choices=[0, 1], help='attn: flow prior on the scores')
     p.add_argument('--riemann', default='hllc', choices=['hllc', 'rusanov'], help='ws only')
     p.add_argument('--integrator', default='rk3', choices=['rk3', 'euler'], help='ws only (nfv always uses euler)')
     p.add_argument('--a', type=int, default=2)
@@ -69,8 +72,8 @@ def parse(argv=None):
     if a.arch == 'pair':
         a.k = a.k or math.ceil(a.cfl) + 1
         a.a = 6 * a.k
-        if a.pair_mode == 'transport' and a.dt_mode != 'global':
-            raise ValueError('pair_mode transport needs --dt_mode global')
+        if a.pair_mode in ('transport', 'attn') and a.dt_mode != 'global':
+            raise ValueError(f'pair_mode {a.pair_mode} needs --dt_mode global')
     return a
 
 
@@ -94,7 +97,8 @@ def get_set(args, split, n, nx, nt, dt_mode='per_sample'):
 def attempt(args, dev, out, k, ed, Pbase):
     torch.manual_seed(args.seed + k)
     model = build(args.arch, args.a, args.b, args.hidden, args.depth, args.act, args.riemann, args.integrator,
-                  k=args.k, mode=args.pair_mode, cfl=args.cfl).to(dev)
+                  k=args.k, mode=args.pair_mode, cfl=args.cfl, emb=args.emb, dk=args.dk,
+                  prior=args.attn_prior).to(dev)
     qs = torch.as_tensor(scaling.QS, dtype=torch.float32, device=dev).view(1, 1, 3, 1)
     sched = parse_schedule(args.schedule)
     step, best, t0 = 0, float('inf'), time.time()

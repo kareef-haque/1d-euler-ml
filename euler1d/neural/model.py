@@ -75,10 +75,10 @@ class NFVModel(nn.Module):
 
 
 def build(arch='nfv', a=2, b=1, hidden=15, depth=6, act='ELU', riemann='hllc', integrator='rk3', dtype=torch.float32,
-          k=3, mode='free', cfl=0.5):
+          k=3, mode='free', cfl=0.5, emb=16, dk=8, prior=0):
     if arch == 'pair':
         from euler1d.neural.pairwise import PairModel
-        return PairModel(k, b, hidden, depth, act, mode, cfl, dtype)
+        return PairModel(k, b, hidden, depth, act, mode, cfl, dtype, emb, dk, prior)
     if arch == 'ws':
         from euler1d.neural.weighted import WSModel
         return WSModel(b, hidden, depth, act, riemann, dtype=dtype, integrator=integrator)
