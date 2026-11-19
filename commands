@@ -1,8 +1,0 @@
-python ablate_nfv.py --variants trans_c4,attn_c4,attnp_c4 --seeds 0,1,2 --out ablation_attn --data_dir generated_nfv
-
-python ablate_nfv.py --variants attn_c4_e8,attn_c4,attn_c4_e32 --seeds 0,1,2 --out ablation_attn --data_dir generated_nfv
-
-python plot_sod_ablation.py "ablation_attn/*/model_final.pt" --out sod_attn.png
-python plot_sod_ablation.py "ablation_attn/*/model_final.pt" --out sod_attn_prim.png --vars prim --xlim 0.15 0.3
-
-python train_nfv.py --arch pair --pair_mode attn --cfl 4 --dt_mode global --schedule 10000:1e-4:10:2,20000:1e-5:50:6,20000:5e-6:100:12 --eval_nt 50 --out runs/attn_c4
