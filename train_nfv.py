@@ -33,7 +33,8 @@ def parse(argv=None):
     p.add_argument('--arch', default='nfv', choices=['nfv', 'ws', 'pair'],
                    help='ws = weighted stencil + Riemann solver (a fixed at 6); pair = pairwise exchange (a = 6k)')
     p.add_argument('--k', type=int, default=0, help='pair: max hop in cells (0 = ceil(cfl) + 1)')
-    p.add_argument('--pair_mode', default='free', choices=['free', 'transport', 'attn'], help='pair only')
+    p.add_argument('--pair_mode', default='free', choices=['free', 'transport', 'attn', 'split'], help='pair only')
+    p.add_argument('--split_limit', type=int, default=1, choices=[0, 1], help='split: positivity limiter')
     p.add_argument('--emb', type=int, default=16, help='attn: embedding size per cell')
     p.add_argument('--dk', type=int, default=8, help='attn: query/key size')
     p.add_argument('--attn_prior', type=int, default=0, choices=[0, 1], help='attn: flow prior on the scores')
@@ -71,8 +72,8 @@ def parse(argv=None):
         a.a = 6
     if a.arch == 'pair':
         a.k = a.k or math.ceil(a.cfl) + 1
-        a.a = 6 * a.k
-        if a.pair_mode in ('transport', 'attn') and a.dt_mode != 'global':
+        a.a = 6 * a.k + (2 if a.pair_mode == 'split' else 0)
+        if a.pair_mode in ('transport', 'attn', 'split') and a.dt_mode != 'global':
             raise ValueError(f'pair_mode {a.pair_mode} needs --dt_mode global')
     return a
 
@@ -80,6 +81,8 @@ def parse(argv=None):
 def get_set(args, split, n, nx, nt, dt_mode='per_sample'):
     G = max(3, args.a // 2)
     path = os.path.join(args.data_dir, fname(split, nx, nt, dt_mode, args.cfl))
+    if os.path.exists(path) and load_set(path)['G'] < G:
+        path = path[:-4] + f'_g{G}.npz'
     if os.path.exists(path):
         d = load_set(path)
         if (d['Q'].shape[0] < n or d['G'] < args.a // 2 or abs(d['dx'] - args.dx) > 1e-15
@@ -98,7 +101,7 @@ def attempt(args, dev, out, k, ed, Pbase):
     torch.manual_seed(args.seed + k)
     model = build(args.arch, args.a, args.b, args.hidden, args.depth, args.act, args.riemann, args.integrator,
                   k=args.k, mode=args.pair_mode, cfl=args.cfl, emb=args.emb, dk=args.dk,
-                  prior=args.attn_prior).to(dev)
+                  prior=args.attn_prior, limit=args.split_limit).to(dev)
     qs = torch.as_tensor(scaling.QS, dtype=torch.float32, device=dev).view(1, 1, 3, 1)
     sched = parse_schedule(args.schedule)
     step, best, t0 = 0, float('inf'), time.time()

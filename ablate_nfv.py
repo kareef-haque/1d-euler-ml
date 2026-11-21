@@ -9,6 +9,7 @@ import sod_plateaus as sp
 from euler1d.neural import evaluate as ev, diagnostics as dg
 from euler1d.neural.model import NFVModel
 
+LONG = '10000:1e-4:10:10,20000:1e-5:50:50,20000:5e-6:100:100,20000:2e-6:200:200'
 VARIANTS = {
     'base': {},
     'a4': {'a': 4},
@@ -38,6 +39,10 @@ VARIANTS = {
     'attnp_c4': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'attn', 'attn_prior': 1, 'dt_mode': 'global'},
     'attn_c4_e8': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'attn', 'emb': 8, 'dk': 4, 'dt_mode': 'global'},
     'attn_c4_e32': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'attn', 'emb': 32, 'dk': 16, 'dt_mode': 'global'},
+    'split_c4': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'split', 'dt_mode': 'global'},
+    'split_c4_nolim': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'split', 'split_limit': 0, 'dt_mode': 'global'},
+    'split_c4_long': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'split', 'dt_mode': 'global', 'schedule': LONG},
+    'trans_c4_long': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'transport', 'dt_mode': 'global', 'schedule': LONG},
 }
 SCHEDULE = '10000:1e-4:10:10,20000:1e-5:50:50,20000:5e-6:100:100'
 
@@ -75,6 +80,8 @@ def train_eval(variant, seed, a):
               eval_nx=a.eval_nx, eval_nt=a.eval_nt, eval_every=a.eval_every, seed=seed,
               data_dir=a.data_dir, out=out, device=a.device, max_restarts=0)
     kw.update(VARIANTS[variant])
+    if a.force_schedule:
+        kw['schedule'] = a.force_schedule
     kw = scale_cfl(kw, a.cfl_match)
     argv = [f'--{k}={v}' for k, v in kw.items()]
     t0 = time.time()
@@ -171,6 +178,7 @@ def main(argv=None):
     p.add_argument('--eval_every', type=int, default=5000)
     p.add_argument('--device', default='auto')
     p.add_argument('--cfl_match', default='nt', choices=['nt', 'nx'], help='how cfl variants keep the physical time')
+    p.add_argument('--force_schedule', default=None, help='overrides variant schedules too (smoke runs)')
     a = p.parse_args(argv)
     runs = [train_eval(v, int(s), a) for v in a.variants.split(',') for s in a.seeds.split(',')]
     S = summarize(runs)
