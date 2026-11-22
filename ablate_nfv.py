@@ -10,6 +10,7 @@ from euler1d.neural import evaluate as ev, diagnostics as dg
 from euler1d.neural.model import NFVModel
 
 LONG = '10000:1e-4:10:10,20000:1e-5:50:50,20000:5e-6:100:100,20000:2e-6:200:200'
+C10 = '10000:1e-4:40:80,20000:1e-5:100:200,20000:5e-6:200:400'  # after scale_cfl: 4 / 10 / 20 steps
 VARIANTS = {
     'base': {},
     'a4': {'a': 4},
@@ -43,6 +44,8 @@ VARIANTS = {
     'split_c4_nolim': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'split', 'split_limit': 0, 'dt_mode': 'global'},
     'split_c4_long': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'split', 'dt_mode': 'global', 'schedule': LONG},
     'trans_c4_long': {'cfl': 4.0, 'arch': 'pair', 'pair_mode': 'transport', 'dt_mode': 'global', 'schedule': LONG},
+    'split_c10': {'cfl': 10.0, 'arch': 'pair', 'pair_mode': 'split', 'dt_mode': 'global', 'schedule': C10},
+    'trans_c10': {'cfl': 10.0, 'arch': 'pair', 'pair_mode': 'transport', 'dt_mode': 'global', 'schedule': C10},
 }
 SCHEDULE = '10000:1e-4:10:10,20000:1e-5:50:50,20000:5e-6:100:100'
 
