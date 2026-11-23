@@ -36,7 +36,8 @@ def parse(argv=None):
     ap.add_argument('--eval_every', type=int, default=500)
     ap.add_argument('--dx', type=float, default=1e-3)
     ap.add_argument('--data_dir', default='generated_dg')
-    ap.add_argument('--seed', type=int, default=0)
+    ap.add_argument('--seed', type=int, default=0, help='model init and batch order')
+    ap.add_argument('--data_seed', type=int, default=0, help='datasets (shared by all runs)')
     ap.add_argument('--max_restarts', type=int, default=3)
     ap.add_argument('--out', default=None)
     ap.add_argument('--device', default='auto')
@@ -64,7 +65,7 @@ def attempt(a, dev, out, k, etd, base):
     log = open(os.path.join(out, 'log.jsonl'), 'a')
     step, best, t0 = 0, float('inf'), time.time()
     for si, (steps, lr, nx, nt) in enumerate(stages(a.schedule)):
-        td = to(dd.tensors(dd.get_set(a.data_dir, 'train', a.n_train, nx, nt, a.dx, a.p, a.seed)), dev)
+        td = to(dd.tensors(dd.get_set(a.data_dir, 'train', a.n_train, nx, nt, a.dx, a.p, a.data_seed)), dev)
         opt = torch.optim.Adam(m.parameters(), lr=lr)
         for it in range(steps):
             idx = torch.randperm(a.n_train, device=dev)[:a.batch]
@@ -109,7 +110,7 @@ def main(argv=None):
     out = a.out or os.path.join('runs', time.strftime('%Y%m%d_%H%M%S') + f'_dg_p{a.p}_{a.mode}')
     os.makedirs(out, exist_ok=True)
     json.dump(vars(a), open(os.path.join(out, 'config.json'), 'w'), indent=1)
-    ed = dd.get_set(a.data_dir, 'eval', a.n_eval, a.eval_nx, a.eval_nt, a.dx, a.p, a.seed)
+    ed = dd.get_set(a.data_dir, 'eval', a.n_eval, a.eval_nx, a.eval_nt, a.dx, a.p, a.data_seed)
     etd = to(dd.tensors(ed), dev)
     with torch.no_grad():
         e_h = dd.mean_err(dd.rollout(etd, 'hllc'), etd)

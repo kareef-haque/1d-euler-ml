@@ -73,3 +73,7 @@ def test_train_and_eval_smoke(tmp_path):
                         '--test_nt', '6', '--named_N', '40', '--data_dir', str(tmp_path / 'd')])
     assert set(res['test']) == {'learned', 'DG-HLLC', 'DG-Rusanov', 'FV HLLC-1'}
     assert set(res['named']) == {'sod', 'lax', '123'} and abs(res['convergence']['DG-HLLC']['rate'] - 2) < 0.3
+    # a second seed must reuse the same cached datasets (the run seed is not the data seed)
+    args[args.index('--out') + 1] = str(tmp_path / 'o1')
+    train_dg.main(args + ['--seed', '1'])
+    assert (tmp_path / 'o1' / 'model_final.pt').exists()

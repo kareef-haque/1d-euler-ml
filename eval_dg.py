@@ -17,7 +17,7 @@ from infrastructure.exact import ExactRiemannSolver
 
 
 def test_split(m, a):
-    d = dd.get_set(a.data_dir, 'test', a.n_test, a.test_nx, a.test_nt, a.dx, m.p, a.seed)
+    d = dd.get_set(a.data_dir, 'test', a.n_test, a.test_nx, a.test_nt, a.dx, m.p, a.data_seed)
     td = dd.tensors(d)
     with torch.no_grad():
         e = {'learned': dd.mean_err(dd.rollout(td, m), td), 'DG-HLLC': dd.mean_err(dd.rollout(td, 'hllc'), td),
@@ -108,7 +108,7 @@ def main(argv=None):
     ap.add_argument('--test_nt', type=int, default=0)
     ap.add_argument('--named_N', type=int, default=200)
     ap.add_argument('--dx', type=float, default=1e-3)
-    ap.add_argument('--seed', type=int, default=0)
+    ap.add_argument('--data_seed', type=int, default=0)
     ap.add_argument('--data_dir', default='generated_dg')
     ap.add_argument('--out', default=None)
     ap.add_argument('--plot', default=None)

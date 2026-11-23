@@ -112,7 +112,7 @@ def mean_err(P, td, H=None):
     '''per-sample MSE of the cell means scaled by QS, over steps 1..H (inf if not finite)'''
     ref = td['Q'][:, :P.shape[1], ..., 0]
     H = H or P.shape[1] - 1
-    qs = torch.as_tensor(scaling.QS, dtype=D).view(1, 1, 3, 1)
+    qs = torch.as_tensor(scaling.QS, dtype=D, device=P.device).view(1, 1, 3, 1)
     e = ((P[:, 1:H + 1, ..., 0] - ref[:, 1:H + 1]) / qs).pow(2).mean((1, 2, 3))
     ok = torch.isfinite(P[:, :H + 1]).all(-1).all(-1).all(-1).all(-1)
     return torch.where(ok, e, torch.full_like(e, float('inf')))
